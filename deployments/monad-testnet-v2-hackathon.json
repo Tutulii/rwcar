@@ -254,6 +254,14 @@
     "publishInitialValuation": {
       "txHash": "0xff00a5811cf6a7c8df18dd7751ae7b075c03e4e47a113d32d793e869e6c3e498",
       "blockNumber": "51826933"
+    },
+    "marketAssetVaultReady": {
+      "txHash": "0x16e5a3cdf82a077f68d3513b6e040e57097dfefc16b31feeb119ace7572ed7eb",
+      "blockNumber": "51827749"
+    },
+    "isolatedEntryUnpaused": {
+      "txHash": "0x462ba1e0888e3373bc78ba322e9c5e8fdc544b171965976de7742687a49cf298",
+      "blockNumber": "51827768"
     }
   },
   "deployedCode": {
@@ -403,9 +411,9 @@
     "V2_SETTLEMENT_TOKEN_ADDRESS": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
     "V2_ALLOWED_DURATIONS": "300",
     "V2_MARGIN_ENABLED": false,
-    "V2_REPO_POLICY_POOL_REGISTERED": false,
-    "V2_FEE_TREASURY_AUSDC_ELIGIBLE": false,
-    "V2_SETTLEMENT_ESCROW_AUSDC_READY": false,
+    "V2_REPO_POLICY_POOL_REGISTERED": true,
+    "V2_FEE_TREASURY_AUSDC_ELIGIBLE": true,
+    "V2_SETTLEMENT_ESCROW_AUSDC_READY": true,
     "V2_MARGIN_POLICY_POOL_REGISTERED": false,
     "V2_MARGIN_VAULT_CUSTODY_READY": false,
     "V2_MARGIN_ESCROW_AUSDC_READY": false,
@@ -547,9 +555,9 @@
     "reconciliationReportHash": null
   },
   "readiness": {
-    "marketAssetVaultReadyTransaction": null,
+    "marketAssetVaultReadyTransaction": "0x16e5a3cdf82a077f68d3513b6e040e57097dfefc16b31feeb119ace7572ed7eb",
     "marginCustodyReadyTransaction": null,
-    "isolatedEntryUnpausedTransaction": null,
+    "isolatedEntryUnpausedTransaction": "0x462ba1e0888e3373bc78ba322e9c5e8fdc544b171965976de7742687a49cf298",
     "marginEntryUnpausedTransaction": null,
     "partialFillsEnabled": false,
     "earlyRepurchaseEnabled": false,
