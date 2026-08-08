@@ -17,6 +17,7 @@ const schema = z.object({
   INDEXER_CATCHUP_DELAY_MS: z.coerce.number().int().min(0).max(5_000).default(100),
   KEEPER_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
   KEEPER_POLL_MS: z.coerce.number().int().min(5_000).default(10_000),
+  V2_AUTOMATION_MAX_CHECKPOINT_LAG: z.coerce.bigint().min(0n).max(1_000n).default(100n),
   V2_DEPLOYMENTS_JSON: z.string().default('[]'),
   V2_SETTLEMENT_TOKEN_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
 });

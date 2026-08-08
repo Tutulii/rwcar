@@ -60,6 +60,23 @@ export function isSignedAutomationTransaction(value: unknown): value is Hex {
   return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2})+$/.test(value);
 }
 
+export function v2AutomationCheckpointState(
+  checkpointBlocks: bigint[],
+  expectedSources: number,
+  chainHead: bigint,
+  confirmations: bigint,
+  maxLag: bigint,
+) {
+  const finalizedBlock = chainHead >= confirmations ? chainHead - confirmations : 0n;
+  const minimumBlock = finalizedBlock > maxLag ? finalizedBlock - maxLag : 0n;
+  const complete = expectedSources > 0 && checkpointBlocks.length === expectedSources;
+  return {
+    ready: complete && checkpointBlocks.every((block) => block >= minimumBlock && block <= chainHead),
+    finalizedBlock,
+    minimumBlock,
+  };
+}
+
 export class V2AutomationWorker {
   private readonly account;
   private readonly publicClient;
@@ -90,7 +107,6 @@ export class V2AutomationWorker {
 
   private async finalizedGate() {
     const head = await this.publicClient.getBlockNumber();
-    const finalized = head >= this.config.INDEXER_CONFIRMATIONS ? head - this.config.INDEXER_CONFIRMATIONS : 0n;
     const consumers = this.sources.map(v2Consumer);
     const checkpoints = consumers.length === 0 ? [] : await this.db.select({
       consumer: indexerCheckpoints.consumer,
@@ -99,7 +115,13 @@ export class V2AutomationWorker {
       eq(indexerCheckpoints.chainId, MONAD_TESTNET.id),
       inArray(indexerCheckpoints.consumer, consumers),
     ));
-    return checkpoints.length === consumers.length && checkpoints.every((checkpoint) => checkpoint.blockNumber >= finalized);
+    return v2AutomationCheckpointState(
+      checkpoints.map((checkpoint) => checkpoint.blockNumber),
+      consumers.length,
+      head,
+      this.config.INDEXER_CONFIRMATIONS,
+      this.config.V2_AUTOMATION_MAX_CHECKPOINT_LAG,
+    ).ready;
   }
 
   private async claimDueJobs() {
@@ -350,7 +372,7 @@ export class V2AutomationWorker {
 
   async runOnce() {
     if (!await this.finalizedGate()) {
-      console.log('V2 automation skipped until every enabled source reaches the finalized head.');
+      console.log('V2 automation skipped until every enabled source enters the bounded finalized checkpoint window.');
       return;
     }
     for (const job of await this.claimDueJobs()) await this.execute(job);

@@ -87,6 +87,7 @@ const common = {
   INDEXER_BATCH_SIZE: String(rpcSecret.maxLogRange || 100),
   INDEXER_POLL_MS: '5000',
   INDEXER_CATCHUP_DELAY_MS: '250',
+  V2_AUTOMATION_MAX_CHECKPOINT_LAG: '100',
   V1_INDEXER_ENABLED: 'false',
   V1_KEEPER_ENABLED: 'false',
 };

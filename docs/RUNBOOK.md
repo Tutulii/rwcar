@@ -232,7 +232,7 @@ Only after the smoke report is approved may governance leave isolated-market rea
 1. Copy only reviewed public addresses and blocks from the final manifest into API/indexer configuration.
 2. Set `V2_DEPLOYMENTS_JSON` to the complete source array emitted by the deployment script, including both engines' child vault/auction/escrow addresses. Do not guess deployment blocks.
 3. Apply the additive database migration before starting the new indexer.
-4. Start the indexer without a keeper first. Wait until every source checkpoint reaches the configured finalized head and compare raw logs to projected offers, positions, balances, auctions, claims, and margin accounts.
+4. Start the indexer without a keeper first. Wait until every source completes a finalized pass and compare raw logs to projected offers, positions, balances, auctions, claims, and margin accounts. During continuous operation, keep every source inside the small `V2_AUTOMATION_MAX_CHECKPOINT_LAG` window; this avoids an impossible equality race against Monad's moving head without allowing stale automation.
 5. Start the dedicated gas-limited keeper. It may only execute permissionless lifecycle calls and must hold no owner, guardian, signer, treasury, or custody role.
 6. After attaching the exact manifest evidence, set the isolated operator gates `V2_REPO_POLICY_POOL_REGISTERED`, `V2_FEE_TREASURY_AUSDC_ELIGIBLE`, and `V2_SETTLEMENT_ESCROW_AUSDC_READY` true. They default false and must not be inferred from an address.
 7. Confirm `GET /v2/config` reports only the registered CVA as `marketReady`, exposes the expected `readiness.operatorAttestations`, `/v2/system/status` is healthy, and transaction-status reads become finalized/indexed after the configured confirmations.

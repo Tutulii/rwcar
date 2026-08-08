@@ -10,6 +10,7 @@ import {
   isAutomationLeaseClaimable,
   isSignedAutomationTransaction,
   isSupportedV2JobAction,
+  v2AutomationCheckpointState,
 } from '../src/v2-keeper.js';
 import { canonicalCheckpointMatches, v2Consumer } from '../src/v2-indexer.js';
 import { offerFilledPositionSnapshot } from '../src/v2-projector.js';
@@ -34,6 +35,7 @@ describe('indexer serialization', () => {
     assert.equal(config.INDEXER_CATCHUP_DELAY_MS, 100);
     assert.equal(config.V1_INDEXER_ENABLED, true);
     assert.equal(config.V1_KEEPER_ENABLED, true);
+    assert.equal(config.V2_AUTOMATION_MAX_CHECKPOINT_LAG, 100n);
   });
 
   it('supports a V2-only low-overhead runtime without weakening V2 automation', () => {
@@ -85,6 +87,18 @@ describe('indexer serialization', () => {
       finalizedBlock: 97n,
     });
     assert.equal(keeperCheckpointState(99n, 100n, 3n).caughtUp, true);
+  });
+
+  it('admits V2 automation only from a complete bounded finalized snapshot', () => {
+    assert.equal(v2AutomationCheckpointState([], 2, 1_000n, 3n, 100n).ready, false);
+    assert.equal(v2AutomationCheckpointState([900n], 2, 1_000n, 3n, 100n).ready, false);
+    assert.deepEqual(v2AutomationCheckpointState([897n, 950n], 2, 1_000n, 3n, 100n), {
+      ready: true,
+      finalizedBlock: 997n,
+      minimumBlock: 897n,
+    });
+    assert.equal(v2AutomationCheckpointState([896n, 997n], 2, 1_000n, 3n, 100n).ready, false);
+    assert.equal(v2AutomationCheckpointState([997n, 1_001n], 2, 1_000n, 3n, 100n).ready, false);
   });
 
   it('parses and namespaces independent V2 deployment sources', () => {
