@@ -10,12 +10,14 @@
     "feeTreasury": "0x505dbD2BAb448DDBF09DfFaB6A932565bab9aDFa",
     "oracleSigner1": "0xA66a66B1a1219Eb6b3711E67F1e84C751bFbD8f5",
     "oracleSigner2": "0xE69E4791158ba0092e3292d20e00c2a0180584A6",
-    "oracleSigner3": "0x04221Af9340Ac4EBd805Eb0C592e645938EaE940"
+    "oracleSigner3": "0x04221Af9340Ac4EBd805Eb0C592e645938EaE940",
+    "keeper": "0x03AE016b746Ad7aC560Cd6f2a7F2d858A93edaC3"
   },
   "security": {
     "privateKeysPrinted": false,
     "encryptedBundleIgnoredByGit": true,
     "disposableTestnetOnly": true,
-    "productionApproved": false
+    "productionApproved": false,
+    "keeperPermissionlessOnly": true
   }
 }

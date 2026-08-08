@@ -1,0 +1,10 @@
+{
+  "sourceRevision": "718491a08bd431d1d3ba9a8960fcbd16e561844f",
+  "status": "CREATED_UNFUNDED",
+  "environment": "monad-testnet-v2-uat",
+  "role": "keeper",
+  "permissionlessOnly": true,
+  "protocolPrivileges": [],
+  "address": "0x03AE016b746Ad7aC560Cd6f2a7F2d858A93edaC3",
+  "createdAt": "2026-08-08T02:05:59.917Z"
+}
