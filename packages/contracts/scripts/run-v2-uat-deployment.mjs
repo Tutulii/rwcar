@@ -1,7 +1,7 @@
 import { createDecipheriv } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -14,6 +14,7 @@ const encryptedBundlePath = join(secretsDirectory, 'v2-uat-roles.enc.json');
 const publicRolesPath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.roles.json');
 const v1ManifestPath = join(repositoryRoot, 'deployments', 'monad-testnet.json');
 const deployScriptPath = join(repositoryRoot, 'packages/contracts/scripts/deploy-v2-uat.mjs');
+const journalPath = join(secretsDirectory, 'v2-deployment.journal.jsonl');
 
 const execute = process.argv.includes('--execute');
 if (execute && !process.argv.includes(`--confirm=${EXECUTION_CONFIRMATION}`)) {
@@ -79,6 +80,7 @@ if (execute) {
   childEnvironment.V2_UAT_DEPLOYER_PRIVATE_KEY = privateKeys.deployer;
   childEnvironment.V2_DEPLOY_CONFIRM = EXECUTION_CONFIRMATION;
   childEnvironment.V2_KEY_ROTATION_ATTESTATION = 'FRESH_UAT_KEYS_NOT_PREVIOUSLY_SHARED';
+  if (existsSync(journalPath)) childEnvironment.V2_RESUME_JOURNAL_PATH = journalPath;
 }
 
 const child = spawn(process.execPath, [deployScriptPath], {
@@ -97,7 +99,7 @@ child.stderr.on('data', (chunk) => {
 });
 const [exitCode] = await once(child, 'close');
 if (journal) {
-  writeFileSync(join(secretsDirectory, 'v2-deployment.journal.jsonl'), journal, { mode: 0o600 });
+  writeFileSync(journalPath, journal, { mode: 0o600 });
 }
 if (exitCode !== 0) throw new Error(`V2 deployment process exited with code ${exitCode}`);
 

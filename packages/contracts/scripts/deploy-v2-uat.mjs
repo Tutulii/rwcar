@@ -249,10 +249,50 @@ const chain = defineChain({
   nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
   rpcUrls: { default: { http: [optional('MONAD_RPC_URL', 'https://testnet-rpc.monad.xyz')] } },
 });
-const transport = http(chain.rpcUrls.default.http[0], { timeout: 20_000, retryCount: 3 });
+const baseTransport = http(chain.rpcUrls.default.http[0], { timeout: 20_000, retryCount: 0 });
+let rpcQueue = Promise.resolve();
+const transport = (transportConfig) => {
+  const inner = baseTransport(transportConfig);
+  return {
+    ...inner,
+    request(args) {
+      const request = rpcQueue.then(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          try {
+            return await inner.request(args);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (!message.includes('requests limited') && !message.includes('-32011')) throw error;
+            if (attempt === 5) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+          }
+        }
+        throw new Error('RPC retry loop exhausted');
+      });
+      rpcQueue = request.then(() => undefined, () => undefined);
+      return request;
+    },
+  };
+};
 const publicClient = createPublicClient({ chain, transport });
 const walletClient = createWalletClient({ account, chain, transport });
 const transactionRecords = {};
+const resumeTransactions = {};
+const resumeJournalPath = process.env.V2_RESUME_JOURNAL_PATH?.trim();
+if (resumeJournalPath) {
+  for (const line of readFileSync(resumeJournalPath, 'utf8').split(/\r?\n/)) {
+    if (!line.startsWith('{')) continue;
+    try {
+      const record = JSON.parse(line);
+      if (record.stage && /^0x[a-fA-F0-9]{64}$/.test(record.txHash ?? '')) {
+        resumeTransactions[record.stage] = record.txHash;
+      }
+    } catch {
+      // Stack traces and RPC diagnostics are intentionally ignored.
+    }
+  }
+}
 
 const assertCode = async (label, target) => {
   const code = await publicClient.getBytecode({ address: target });
@@ -261,8 +301,10 @@ const assertCode = async (label, target) => {
 
 const deploy = async (key, contractName, args) => {
   const compiled = artifacts[contractName];
-  const hash = await walletClient.deployContract({ abi: compiled.abi, bytecode: compiled.bytecode, args });
-  console.error(JSON.stringify({ stage: key, txHash: hash, state: 'SUBMITTED' }));
+  const recoveredHash = resumeTransactions[key];
+  const hash = recoveredHash
+    ?? await walletClient.deployContract({ abi: compiled.abi, bytecode: compiled.bytecode, args });
+  console.error(JSON.stringify({ stage: key, txHash: hash, state: recoveredHash ? 'RECOVERED' : 'SUBMITTED' }));
   const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations });
   if (receipt.status !== 'success' || !receipt.contractAddress) {
     throw new Error(`${contractName} deployment failed: ${hash}`);
@@ -285,15 +327,19 @@ const deploy = async (key, contractName, args) => {
 };
 
 const write = async (key, contract, functionName, args) => {
-  const simulation = await publicClient.simulateContract({
-    account,
-    address: contract.address,
-    abi: contract.abi,
-    functionName,
-    args,
-  });
-  const hash = await walletClient.writeContract(simulation.request);
-  console.error(JSON.stringify({ stage: key, txHash: hash, state: 'SUBMITTED' }));
+  const recoveredHash = resumeTransactions[key];
+  let hash = recoveredHash;
+  if (!hash) {
+    const simulation = await publicClient.simulateContract({
+      account,
+      address: contract.address,
+      abi: contract.abi,
+      functionName,
+      args,
+    });
+    hash = await walletClient.writeContract(simulation.request);
+  }
+  console.error(JSON.stringify({ stage: key, txHash: hash, state: recoveredHash ? 'RECOVERED' : 'SUBMITTED' }));
   const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations });
   if (receipt.status !== 'success') throw new Error(`${functionName} failed: ${hash}`);
   transactionRecords[key] = { txHash: hash, blockNumber: receipt.blockNumber.toString() };
