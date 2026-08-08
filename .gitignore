@@ -6,6 +6,7 @@ dist/
 .secrets/
 deployments/*.private.json
 deployments/*.journal.jsonl
+deployments/*.plan.json
 *.log
 coverage/
 artifacts/
