@@ -155,7 +155,9 @@ export class V2PreflightService {
   ) {
     if (edges.length === 0) return { graph: [], reasons: [] as Reason[] };
     const requestIds = await this.requestIds(edges.map((edge) => edge.token as Address));
-    const missing = edges.some((edge) => !requestIds.has(edge.token.toLowerCase()));
+    const settlementToken = this.settlementToken().toLowerCase();
+    const missing = edges.some((edge) => !requestIds.has(edge.token.toLowerCase())
+      && edge.token.toLowerCase() !== settlementToken);
     if (missing) return { graph: [], reasons: ['COMPLIANCE_UNAVAILABLE'] as Reason[] };
     const graph = await this.compliance.evaluateTransferGraph(edges, requestIds, correlationId, context);
     return { graph, reasons: unique(graph.flatMap((check) => check.blockingReasons)) };
@@ -176,7 +178,9 @@ export class V2PreflightService {
   ) {
     const requestIds = await this.requestIds([token]);
     const requestId = requestIds.get(token.toLowerCase());
-    if (!requestId) return { compliance: [] as PreflightResultV2['compliance'], reasons: ['COMPLIANCE_UNAVAILABLE'] as Reason[] };
+    if (!requestId && token.toLowerCase() !== this.settlementToken().toLowerCase()) {
+      return { compliance: [] as PreflightResultV2['compliance'], reasons: ['COMPLIANCE_UNAVAILABLE'] as Reason[] };
+    }
     const compliance = await Promise.all(unique(wallets.map((wallet) => wallet.toLowerCase())).map((wallet) =>
       this.compliance.verify(wallet as Address, token, requestId, correlationId, policyPool)));
     const reasons: Reason[] = [];
@@ -617,10 +621,14 @@ export class V2PreflightService {
     if (maxPayoff < livePayoff) reasons.push('SLIPPAGE_EXCEEDED');
     const settlementAsset = await this.store.getAssetIncludingDisabled(this.settlementToken());
     const settlementRequestId = settlementAsset?.cleanverseRequestId ?? this.config.AUSDC_CLEANVERSE_REQUEST_ID;
-    const buyerCompliance = settlementRequestId
-      ? await this.compliance.verify(position.buyer as Address, this.settlementToken(), settlementRequestId, correlationId, market)
-      : null;
-    const useEscrow = !buyerCompliance || !buyerCompliance.cviActive || buyerCompliance.verificationCode !== 4 || buyerCompliance.poolEligible !== true;
+    const buyerCompliance = await this.compliance.verify(
+      position.buyer as Address,
+      this.settlementToken(),
+      settlementRequestId,
+      correlationId,
+      market,
+    );
+    const useEscrow = !buyerCompliance.cviActive || buyerCompliance.verificationCode !== 4 || buyerCompliance.poolEligible !== true;
     const paymentRecipient = useEscrow
       ? marketMetadata.settlementEscrow
       : position.buyer as Address;

@@ -41,6 +41,12 @@ export interface AssetApplication {
   raw: JsonObject;
 }
 
+export interface SupportedAsset {
+  chain: string;
+  tokenAddress: string;
+  raw: JsonObject;
+}
+
 export interface ValidatorMutation {
   chain: string;
   address: string;
@@ -169,6 +175,23 @@ export class CleanverseClient {
     const response = await this.post('/query_deposit_atoken_list', { chain });
     const data = asObject(response.data);
     return Array.isArray(data.tokens) ? data.tokens.map(asObject) : [];
+  }
+
+  async querySupportedAsset(chain: string, atoken: string): Promise<SupportedAsset | null> {
+    const normalized = atoken.toLowerCase();
+    const tokens = await this.querySupportedAssets(chain);
+    const match = tokens.find((entry) => {
+      const address = asObject(entry.atoken).address;
+      return typeof address === 'string' && address.toLowerCase() === normalized;
+    });
+    if (!match) return null;
+    const address = asObject(match.atoken).address;
+    if (typeof address !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(address)) return null;
+    return {
+      chain: chain.toLowerCase(),
+      tokenAddress: address.toLowerCase(),
+      raw: match,
+    };
   }
 
   async grantValidatorRegistrar(chain: string, address: string, ownerSignature: string): Promise<ValidatorMutation> {

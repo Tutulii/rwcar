@@ -91,6 +91,15 @@ const tokenMetadataReadAbi = [{
   type: 'function', name: 'decimals', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint8' }],
 }] as const;
 
+const atokenPolicyAddressAbi = [{
+  type: 'function', name: 'policy', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }],
+}] as const;
+
+const atokenPolicyPauseAbi = [{
+  type: 'function', name: 'isPaused', stateMutability: 'view',
+  inputs: [{ name: 'token', type: 'address' }], outputs: [{ name: '', type: 'bool' }],
+}] as const;
+
 const riskManagerReadAbi = [{
   type: 'function', name: 'getConfig', stateMutability: 'view',
   inputs: [{ name: 'asset', type: 'address' }],
@@ -242,6 +251,7 @@ export interface ChainService {
   marketMetadata(market: Address): Promise<MarketMetadata>;
   assetEnabled(registry: Address, asset: Address): Promise<boolean>;
   tokenDecimals(token: Address): Promise<number>;
+  tokenPolicyState(token: Address): Promise<{ policy: Address; paused: boolean }>;
   blockNumber(): Promise<bigint>;
   blockTimestamp(blockNumber?: bigint): Promise<bigint>;
   vaultAvailable(vault: Address, account: Address): Promise<bigint>;
@@ -316,6 +326,13 @@ export function createChainService(config: ApiConfig): ChainService {
     },
     async tokenDecimals(token: Address) {
       return client.readContract({ address: token, abi: tokenMetadataReadAbi, functionName: 'decimals' });
+    },
+    async tokenPolicyState(token: Address) {
+      const policy = await client.readContract({ address: token, abi: atokenPolicyAddressAbi, functionName: 'policy' });
+      const paused = await client.readContract({
+        address: policy, abi: atokenPolicyPauseAbi, functionName: 'isPaused', args: [token],
+      });
+      return { policy, paused };
     },
     async blockNumber() {
       return client.getBlockNumber();

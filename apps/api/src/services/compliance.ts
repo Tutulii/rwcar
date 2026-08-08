@@ -28,20 +28,31 @@ export class ComplianceService {
   async verify(
     wallet: Address,
     asset: Address,
-    requestId: string,
+    requestId: string | undefined,
     correlationId = randomUUID(),
     policyPool?: Address,
   ): Promise<ComplianceResult> {
     const pool = policyPool ?? (this.config.REPO_MARKET_ADDRESS as Address | undefined);
-    const key = `${wallet.toLowerCase()}:${asset.toLowerCase()}:${requestId}:${pool?.toLowerCase() ?? 'none'}`;
+    const normalizedAsset = asset.toLowerCase();
+    const supportedSettlementFallback = requestId === undefined
+      && normalizedAsset === this.config.V2_SETTLEMENT_TOKEN_ADDRESS.toLowerCase();
+    if (!requestId && !supportedSettlementFallback) {
+      throw new Error(`No Cleanverse request identifier configured for ${asset}`);
+    }
+    const key = `${wallet.toLowerCase()}:${normalizedAsset}:${requestId ?? 'cleanverse-supported-token'}:${pool?.toLowerCase() ?? 'none'}`;
     const cached = this.cache.get(key);
     if (cached && cached.expires > Date.now()) return cached.value;
 
     const [apass, verification, application] = await Promise.all([
       this.cleanverse.queryApass(MONAD_TESTNET.cleanverseChain, wallet),
       this.cleanverse.verifyApass(MONAD_TESTNET.cleanverseChain, asset, wallet),
-      this.cleanverse.queryAssetApplication(requestId),
+      requestId
+        ? this.cleanverse.queryAssetApplication(requestId)
+        : this.supportedSettlementApplication(asset),
     ]);
+    const applicationBound = application.chain === MONAD_TESTNET.cleanverseChain
+      && application.tokenAddress === normalizedAsset
+      && application.pauseKnown;
     const poolEligible = pool
       ? await this.chain.poolEligible(CONTRACTS.validator, pool, wallet)
       : null;
@@ -57,8 +68,8 @@ export class ComplianceService {
       subGroup: apass.subGroup,
       countries: apass.countries,
       verificationCode: verification.code,
-      assetIssued: application.issued,
-      assetPaused: application.paused,
+      assetIssued: application.issued && applicationBound,
+      assetPaused: application.paused || !applicationBound,
       poolEligible,
       checkedAt: new Date().toISOString(),
     };
@@ -78,6 +89,27 @@ export class ComplianceService {
     return value;
   }
 
+  private async supportedSettlementApplication(asset: Address) {
+    const [supported, policyState] = await Promise.all([
+      this.cleanverse.querySupportedAsset(MONAD_TESTNET.cleanverseChain, asset),
+      this.chain.tokenPolicyState(asset),
+    ]);
+    return {
+      issued: supported !== null,
+      paused: policyState.paused,
+      pauseKnown: true,
+      status: supported ? 'SUPPORTED' : null,
+      chain: supported?.chain ?? MONAD_TESTNET.cleanverseChain,
+      tokenAddress: supported?.tokenAddress ?? null,
+      raw: {
+        verificationSource: 'query_deposit_atoken_list+policy.isPaused',
+        supportedAsset: supported?.raw ?? null,
+        policyAddress: policyState.policy,
+        policyPaused: policyState.paused,
+      },
+    };
+  }
+
   async evaluateTransferGraph(
     edges: TransferEdge[],
     requestIds: ReadonlyMap<string, string>,
@@ -87,7 +119,8 @@ export class ComplianceService {
     const checks: TransferGraphCheck[] = [];
     for (const edge of edges) {
       const requestId = requestIds.get(edge.token.toLowerCase());
-      if (!requestId) {
+      const isSettlementToken = edge.token.toLowerCase() === this.config.V2_SETTLEMENT_TOKEN_ADDRESS.toLowerCase();
+      if (!requestId && !isSettlementToken) {
         throw new Error(`No Cleanverse request identifier configured for ${edge.token}`);
       }
       const [fromCompliance, toCompliance] = await Promise.all([

@@ -75,6 +75,26 @@ describe('Cleanverse adapter', () => {
     assert.equal(application.pauseKnown, false);
   });
 
+  it('matches only the exact nested A-Token in the supported-token registry', async () => {
+    const target = '0x00000000000000000000000000000000000000a1';
+    const other = '0x00000000000000000000000000000000000000b2';
+    const client = new CleanverseClient(config, (async () => new Response(JSON.stringify({
+      code: '0000',
+      data: {
+        tokens: [
+          { origin_token: { address: target }, atoken: { address: other, symbol: 'aOTHER' } },
+          { origin_token: { address: other }, atoken: { address: target.toUpperCase().replace('0X', '0x'), symbol: 'aUSDC' } },
+        ],
+      },
+    }), { status: 200 })) as typeof fetch);
+
+    const supported = await client.querySupportedAsset('monad', target);
+    assert.equal(supported?.chain, 'monad');
+    assert.equal(supported?.tokenAddress, target);
+    assert.equal((supported?.raw.atoken as Record<string, unknown>).symbol, 'aUSDC');
+    assert.equal(await client.querySupportedAsset('monad', '0x00000000000000000000000000000000000000c3'), null);
+  });
+
   it('encrypts the documented validator registrar grant and requires a transaction hash', async () => {
     const factory = '0x00000000000000000000000000000000000000f1';
     const signature = `0x${'ab'.repeat(65)}`;
