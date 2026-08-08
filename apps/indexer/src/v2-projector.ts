@@ -86,8 +86,20 @@ function bucketName(value: unknown) {
   return name as 'AVAILABLE' | 'OFFER_RESERVED' | 'POSITION_LOCKED' | 'AUCTION_LOCKED' | 'MARGIN_LOCKED';
 }
 
-function bytes32Label(value: unknown) {
-  try { return hexToString(String(value) as `0x${string}`, { size: 32 }); } catch { return String(value); }
+export function bytes32Label(value: unknown) {
+  const raw = String(value);
+  if (/^0x[0-9a-fA-F]{64}$/.test(raw)) {
+    if (/^0x0{64}$/i.test(raw)) return 'NONE';
+    try {
+      const decoded = hexToString(raw as `0x${string}`, { size: 32 }).replace(/\0+$/g, '');
+      if (/^[\x20-\x7e]{1,32}$/.test(decoded)) return decoded;
+    } catch {
+      // Preserve unknown bytes32 markers as database-safe hex evidence.
+    }
+    return raw.toLowerCase();
+  }
+  const safe = raw.replace(/\0/g, '');
+  return safe || 'NONE';
 }
 
 async function scheduleJob(

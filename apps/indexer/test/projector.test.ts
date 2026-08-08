@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { repoMarketV2Abi } from '@rwcar/shared';
-import { decodeEventLog, encodeAbiParameters, encodeEventTopics, keccak256 } from 'viem';
+import { decodeEventLog, encodeAbiParameters, encodeEventTopics, keccak256, stringToHex } from 'viem';
 import { loadConfig, parseV2DeploymentSources } from '../src/config.js';
 import { keeperCheckpointState, keeperRetryKey } from '../src/keeper.js';
 import { jsonSafe } from '../src/projector.js';
@@ -13,7 +13,7 @@ import {
   v2AutomationCheckpointState,
 } from '../src/v2-keeper.js';
 import { canonicalCheckpointMatches, v2Consumer } from '../src/v2-indexer.js';
-import { offerFilledPositionSnapshot } from '../src/v2-projector.js';
+import { bytes32Label, offerFilledPositionSnapshot } from '../src/v2-projector.js';
 
 const requiredConfig = {
   DATABASE_URL: 'postgresql://rwcar:rwcar@127.0.0.1:5432/rwcar',
@@ -27,6 +27,13 @@ describe('indexer serialization', () => {
       repoId: (2n ** 200n).toString(),
       nested: ['1'],
     });
+  });
+
+  it('normalizes zero and padded vault ledger labels without PostgreSQL NUL bytes', () => {
+    assert.equal(bytes32Label(`0x${'00'.repeat(32)}`), 'NONE');
+    assert.equal(bytes32Label(stringToHex('DEPOSIT', { size: 32 })), 'DEPOSIT');
+    assert.equal(bytes32Label('\0'), 'NONE');
+    assert.equal(bytes32Label(`0x${'ff'.repeat(32)}`), `0x${'ff'.repeat(32)}`);
   });
 
   it('defaults log scans to Monad-compatible 100-block batches', () => {
