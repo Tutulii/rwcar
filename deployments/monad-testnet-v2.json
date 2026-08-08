@@ -242,6 +242,24 @@
     "transferMarginOwnership": {
       "txHash": "0x5b60ab64d8faca5eedc3ace56639d1e56db2436b1e5a073b3083bf000c36df71",
       "blockNumber": "51808842"
+    },
+    "fundPendingOwner": {
+      "txHash": "0x00d9d2f97ce81042936ca2599794b852a1a486c488e8f3aa698d5b4705f751e2",
+      "blockNumber": "51816220",
+      "amountMON": "1",
+      "finalBalanceMON": "1"
+    },
+    "fundPauseGuardian": {
+      "txHash": "0x69d6a9f27a87cd0e1cae492d0d7bf19d106be4fdaf5f8d4707d0785f4c208f95",
+      "blockNumber": "51816239",
+      "amountMON": "0.1",
+      "finalBalanceMON": "0.1"
+    },
+    "fundFeeTreasury": {
+      "txHash": "0x2e85b7cc3e15b78b0cb457c1d0b1c9012c649e9bff36c489b17865fffcb9b47b",
+      "blockNumber": "51816257",
+      "amountMON": "0.1",
+      "finalBalanceMON": "0.1"
     }
   },
   "deployedCode": {
@@ -613,5 +631,30 @@
     "Submit a fresh 2-of-3 signed valuation and execute real deposit/withdraw/escrow claim smoke proofs.",
     "Only then set readiness true and unpause isolated entry; enable cross-margin last.",
     "After every activation proof passes, review frontendTrustedManifestDraft, change only its status to ACTIVE, and provide its compact JSON as VITE_TRUSTED_V2_MANIFEST_JSON at frontend build time."
-  ]
+  ],
+  "operationalRoleFunding": {
+    "source": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+    "sourceReserveMON": "1",
+    "finalSourceBalanceMON": "3.79352351",
+    "transactions": {
+      "pendingOwner": {
+        "txHash": "0x00d9d2f97ce81042936ca2599794b852a1a486c488e8f3aa698d5b4705f751e2",
+        "blockNumber": "51816220",
+        "amountMON": "1",
+        "finalBalanceMON": "1"
+      },
+      "pauseGuardian": {
+        "txHash": "0x69d6a9f27a87cd0e1cae492d0d7bf19d106be4fdaf5f8d4707d0785f4c208f95",
+        "blockNumber": "51816239",
+        "amountMON": "0.1",
+        "finalBalanceMON": "0.1"
+      },
+      "feeTreasury": {
+        "txHash": "0x2e85b7cc3e15b78b0cb457c1d0b1c9012c649e9bff36c489b17865fffcb9b47b",
+        "blockNumber": "51816257",
+        "amountMON": "0.1",
+        "finalBalanceMON": "0.1"
+      }
+    }
+  }
 }

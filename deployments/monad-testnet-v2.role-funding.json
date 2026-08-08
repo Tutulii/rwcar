@@ -1,0 +1,53 @@
+{
+  "sourceRevision": "aa80d7a96babc9949d863490d5627bcb11efb2ac",
+  "status": "FUNDED",
+  "chainId": 10143,
+  "source": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+  "sourceBalanceMON": "5",
+  "sourceReserveMON": "1",
+  "targets": [
+    {
+      "key": "pendingOwner",
+      "address": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+      "currentMON": "0",
+      "minimumMON": "1",
+      "topUpMON": "1"
+    },
+    {
+      "key": "pauseGuardian",
+      "address": "0x178B7B51fF3330025d2F224Ecb4C967a193adAD4",
+      "currentMON": "0",
+      "minimumMON": "0.1",
+      "topUpMON": "0.1"
+    },
+    {
+      "key": "feeTreasury",
+      "address": "0x505dbD2BAb448DDBF09DfFaB6A932565bab9aDFa",
+      "currentMON": "0",
+      "minimumMON": "0.1",
+      "topUpMON": "0.1"
+    }
+  ],
+  "completedAt": "2026-08-08T00:56:39.740Z",
+  "finalSourceBalanceMON": "3.79352351",
+  "transactions": {
+    "pendingOwner": {
+      "txHash": "0x00d9d2f97ce81042936ca2599794b852a1a486c488e8f3aa698d5b4705f751e2",
+      "blockNumber": "51816220",
+      "amountMON": "1",
+      "finalBalanceMON": "1"
+    },
+    "pauseGuardian": {
+      "txHash": "0x69d6a9f27a87cd0e1cae492d0d7bf19d106be4fdaf5f8d4707d0785f4c208f95",
+      "blockNumber": "51816239",
+      "amountMON": "0.1",
+      "finalBalanceMON": "0.1"
+    },
+    "feeTreasury": {
+      "txHash": "0x2e85b7cc3e15b78b0cb457c1d0b1c9012c649e9bff36c489b17865fffcb9b47b",
+      "blockNumber": "51816257",
+      "amountMON": "0.1",
+      "finalBalanceMON": "0.1"
+    }
+  }
+}
