@@ -1,0 +1,617 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "v2",
+  "status": "DEPLOYED_NOT_ACTIVE",
+  "network": {
+    "name": "Monad Testnet",
+    "chainId": 10143,
+    "rpcUrlRecordedSeparately": true
+  },
+  "generatedAt": "2026-08-08T00:17:33.096Z",
+  "release": {
+    "sourceRevision": "067f4d758fbf852e6af4d87ba3684dc687f1f08d",
+    "compiler": "solc 0.8.24; optimizer 500 runs; viaIR true",
+    "artifacts": {
+      "CvaAssetRegistry": {
+        "sourceName": "CvaAssetRegistry.sol",
+        "initCodeHash": "0xb4a94735dff0da439102bd47e6e5ee82d5a75e455c256634601a2c27bded9503",
+        "compiledRuntimeTemplateHash": "0xdbabf37fdad96937352941fd3d1225a7101d4778bb2ee7423ced733aaf4b96dc",
+        "initCodeBytes": 1353,
+        "runtimeCodeBytes": 1139
+      },
+      "ProtocolModuleFactoryV2": {
+        "sourceName": "v2/ProtocolModuleFactoryV2.sol",
+        "initCodeHash": "0x6e97a1351d5a50cfc65f988f699adc18ea498063d7ba629492a4110d8d092740",
+        "compiledRuntimeTemplateHash": "0x3406554b87bbff4c88c0cc3baca82272f5e76177e2b2b3d9b46886996470566a",
+        "initCodeBytes": 19346,
+        "runtimeCodeBytes": 19023
+      },
+      "RiskManagerV2": {
+        "sourceName": "v2/RiskManagerV2.sol",
+        "initCodeHash": "0xa55ab7eab07a7da31fbfe684e25e0b1565d65da686f00e5ea3e4f5daadec6573",
+        "compiledRuntimeTemplateHash": "0x806da5daaa7a4889487d4d2e064b26fc78368f6305311e7372091b06d2033386",
+        "initCodeBytes": 5093,
+        "runtimeCodeBytes": 4843
+      },
+      "SignedValuationOracle": {
+        "sourceName": "v2/SignedValuationOracle.sol",
+        "initCodeHash": "0x2967181ff0c7b87dbf49a120dfa9feeee36b6df2073e661e6be6abf1aa0ed54c",
+        "compiledRuntimeTemplateHash": "0x27d789b036a2383581a43f291c3a1b85e41e708d9535f977813fb275fa08e2fe",
+        "initCodeBytes": 8705,
+        "runtimeCodeBytes": 7018
+      },
+      "RepoMarketV2": {
+        "sourceName": "v2/RepoMarketV2.sol",
+        "initCodeHash": "0xf8b664aedeba480f12570ae62608489b9d6364f62042e447efcee80430523f89",
+        "compiledRuntimeTemplateHash": "0xe27e9dd98696e806fd514bc8acff9c9206cc2818adfded6a48c205e2e2b8cf10",
+        "initCodeBytes": 23171,
+        "runtimeCodeBytes": 21315
+      },
+      "MarginEngineV2": {
+        "sourceName": "v2/MarginEngineV2.sol",
+        "initCodeHash": "0xb89e86efedc6d600d1ea9a15dc39935cf550ad9c178e944825dd65f8f9baa546",
+        "compiledRuntimeTemplateHash": "0x6de97e6de81bffdb39cce28c1604ac5be9fec9c87ca716427c960a8ee213ce13",
+        "initCodeBytes": 25256,
+        "runtimeCodeBytes": 22820
+      },
+      "CollateralVaultV2": {
+        "sourceName": "v2/CollateralVaultV2.sol",
+        "initCodeHash": "0xcfd08caaf5f7cf228631ca00651870dbeba4c263f6def0baab0ecd296f79762c",
+        "compiledRuntimeTemplateHash": "0x356e102e62be7b5afdb4485e59dc20856fbd8d85e692a7ad73a31ad9aa3bcfa7",
+        "initCodeBytes": 10514,
+        "runtimeCodeBytes": 10036
+      },
+      "DutchAuctionV2": {
+        "sourceName": "v2/DutchAuctionV2.sol",
+        "initCodeHash": "0x9d1ad5aff7394601d2abcfb5daf7513f9e8a89e4c466b027c90f553df8df93d4",
+        "compiledRuntimeTemplateHash": "0x3c5c3a1bab94a6bb4535d514fa3ee8fec21cc4cb0f12fc924c64a8dad9246423",
+        "initCodeBytes": 2764,
+        "runtimeCodeBytes": 2586
+      },
+      "SettlementEscrowV2": {
+        "sourceName": "v2/SettlementEscrowV2.sol",
+        "initCodeHash": "0xa36bba92880b1239dcf534f851bef6146cdee38152f94d778a3a0ab6e245eeb9",
+        "compiledRuntimeTemplateHash": "0xecad7444b6bcdccd8c8503d23b0163fd00b3419866fbc6b8211e463d85c73044",
+        "initCodeBytes": 3229,
+        "runtimeCodeBytes": 2878
+      }
+    }
+  },
+  "roles": {
+    "deployer": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+    "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+    "factoryActivationOwner": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+    "pauseGuardian": "0x178B7B51fF3330025d2F224Ecb4C967a193adAD4",
+    "feeTreasury": "0x505dbD2BAb448DDBF09DfFaB6A932565bab9aDFa",
+    "oracleSigners": [
+      "0xA66a66B1a1219Eb6b3711E67F1e84C751bFbD8f5",
+      "0xE69E4791158ba0092e3292d20e00c2a0180584A6",
+      "0x04221Af9340Ac4EBd805Eb0C592e645938EaE940"
+    ]
+  },
+  "externalContracts": {
+    "cvaAsset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+    "settlementToken": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+    "complianceValidator": "0xaC7e5179C2C7f03f209136886c172eb34F161792",
+    "cvaReferenceHash": "0xb5231edafb76c0b32468759cbf2738977bf8504476fde4638a516686c95b5afe"
+  },
+  "parameters": {
+    "cvaDecimals": 6,
+    "protocolFeeBps": 15,
+    "gracePeriod": 120,
+    "allowedDurations": [
+      300
+    ],
+    "riskConfigDelay": 86400,
+    "riskConfig": {
+      "enabled": true,
+      "initialLtvBps": 7000,
+      "maintenanceLtvBps": 8000,
+      "liquidationLtvBps": 8500,
+      "auctionStartBps": 10500,
+      "auctionFloorBps": 8000,
+      "liquidationFeeBps": 50,
+      "earlyMinHoldBps": 1000,
+      "earlyBreakFeeBps": 25,
+      "defaultSpreadBps": 500,
+      "maxDefaultRateBps": 5000,
+      "maxOracleAge": 3600,
+      "auctionDuration": 1800,
+      "marginCallPeriod": 3600,
+      "staleOracleFallbackDelay": 86400
+    }
+  },
+  "safety": {
+    "deployerIsOneTime": true,
+    "entryPausedAtHandoff": true,
+    "cleanverseReadinessAtHandoff": false,
+    "ownerContractRequired": false,
+    "factoryActivationOwnerMustBeEoa": true,
+    "executeRequiresConfirmation": "DEPLOY_RWCAR_V2_TO_MONAD_TESTNET_10143"
+  },
+  "contracts": {
+    "assetRegistry": "0x0424051a55de388e7af9c71f7cf7c3e61f02f879",
+    "moduleFactory": "0x56ad2cde82d67106ec6a06b99dde2e25a1ada572",
+    "riskManager": "0x5d79b7b9a5572f340d516d81e54fb481eeeef979",
+    "valuationOracle": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
+    "repoMarket": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+    "marketVault": "0x4134c6481AaEca2C5EEC0fc1b83595fD65030C8F",
+    "marketAuction": "0x178D7f83b554ce68592ee2949FC0D750CbfdfdA4",
+    "marketSettlementEscrow": "0x364C4F6430c87c2013CE660c05d338b16D21a679",
+    "marginEngine": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+    "marginVault": "0x5d40AB1Fe5A9a9D2E20b6f7646E3BA19a2049250",
+    "marginAuction": "0xbAE29a6C179BfC56733C2Fbb2Ec9c153ad22066a",
+    "marginSettlementEscrow": "0xE982b269533E1E0a4FbB4762fa4bb42Fc20E3feA"
+  },
+  "deploymentBlocks": {
+    "assetRegistry": "51807956",
+    "moduleFactory": "51807939",
+    "riskManager": "51807979",
+    "valuationOracle": "51807999",
+    "repoMarket": "51808039",
+    "marketVault": "51808059",
+    "marginEngine": "51808078"
+  },
+  "transactions": {
+    "deployModuleFactory": {
+      "txHash": "0x4bec694d3dd5fc9e9bd09a00eef416d85db25fd6467ac3a50647dac8d3baf0e0",
+      "blockNumber": "51807939",
+      "contractAddress": "0x56ad2cde82d67106ec6a06b99dde2e25a1ada572",
+      "deployedRuntimeCodeHash": "0x3e0d6970a2ff39648fd3af492ec3b609f3d897ec7301d0c1e898fe92df5e7af9",
+      "deployedRuntimeCodeBytes": 19023
+    },
+    "deployAssetRegistry": {
+      "txHash": "0x614d5976c17f5f3f7f58e5fabba54f842a024f48ea1ae321c84c7fde4e8b00cb",
+      "blockNumber": "51807956",
+      "contractAddress": "0x0424051a55de388e7af9c71f7cf7c3e61f02f879",
+      "deployedRuntimeCodeHash": "0xdbabf37fdad96937352941fd3d1225a7101d4778bb2ee7423ced733aaf4b96dc",
+      "deployedRuntimeCodeBytes": 1139
+    },
+    "deployRiskManager": {
+      "txHash": "0xaaec4fff02747dc77d29b351e90433f83bd4f9fb48fbe04fcfe7701d13352202",
+      "blockNumber": "51807979",
+      "contractAddress": "0x5d79b7b9a5572f340d516d81e54fb481eeeef979",
+      "deployedRuntimeCodeHash": "0xbf6d00b58951db3d30a9c1d39015af8ddd7a7faf7fad0fc99d0870b6c8f3aac8",
+      "deployedRuntimeCodeBytes": 4843
+    },
+    "deployValuationOracle": {
+      "txHash": "0xdbf42aa6c2d2a106429500eb50fc53312127d8f10e723f4b3483f58104670e74",
+      "blockNumber": "51807999",
+      "contractAddress": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
+      "deployedRuntimeCodeHash": "0x3dbe339489fac3333c0a0bf5e395fee8147f4ffd780766d50a96f33add355e22",
+      "deployedRuntimeCodeBytes": 7018
+    },
+    "enableCvaAsset": {
+      "txHash": "0x9598d770b584b8e59e537a1a9b81574c44239a04eefbd8c39d84a88193f412c3",
+      "blockNumber": "51808018"
+    },
+    "deployRepoMarket": {
+      "txHash": "0x27cf777c0823fdcf9a6a022eecf22307fbed53c057e7364e4b20e6338e80a0cc",
+      "blockNumber": "51808039",
+      "contractAddress": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+      "deployedRuntimeCodeHash": "0x2075a8a9ce07d0da276d1698ee2cc98c4db6a4b16c96bae1327ac61f96dfdebb",
+      "deployedRuntimeCodeBytes": 21315
+    },
+    "configureMarketAsset": {
+      "txHash": "0x96ffcb27aa260810958e57b8a3b55043c7e4f04237c30d6374a880d8afbb04f9",
+      "blockNumber": "51808059"
+    },
+    "deployMarginEngine": {
+      "txHash": "0x2cab804085612e8d38f45f7d9763eb65d7adec86aec01ffc025e966ff1d95bf1",
+      "blockNumber": "51808078",
+      "contractAddress": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+      "deployedRuntimeCodeHash": "0x06fbaa115be9b9e0ed646ba607b0bd743a3a5e011c0d2ea479107445480d14a7",
+      "deployedRuntimeCodeBytes": 22820
+    },
+    "scheduleRiskConfig": {
+      "txHash": "0xda6ce8e8fa200754f6c6dea8c9c7419bf5bc1d79519b9ccd5ece171b79f57f39",
+      "blockNumber": "51808665"
+    },
+    "setMarketPauseGuardian": {
+      "txHash": "0xa8c343807e202038a4f9afb658bbc36c7ccd20e82da016d155a5cf6dc5444d21",
+      "blockNumber": "51808684"
+    },
+    "pauseMarketEntry": {
+      "txHash": "0x13b320313459f9a37190f4538c47a79cb87574a1209b03e22969f52c5aa1585d",
+      "blockNumber": "51808703"
+    },
+    "setMarginPauseGuardian": {
+      "txHash": "0xd0bbc6b71fb32fba9b7380533a4c1ba2d3468fa19fc509ae4c3b4cfe05a4aa5f",
+      "blockNumber": "51808720"
+    },
+    "pauseMarginEntry": {
+      "txHash": "0xa1a154f56806d2a550a44a66f809f381a9d98a94a92a2b53c32e68816027a9bf",
+      "blockNumber": "51808739"
+    },
+    "transferRegistryOwnership": {
+      "txHash": "0xe263118f3dfc0f9297430969a8e8387debf87973c58eeaec9b9831937f0e1ffe",
+      "blockNumber": "51808759"
+    },
+    "transferRiskManagerOwnership": {
+      "txHash": "0x4910c77bd327373b2a4733736cb5a68ff7460a1dc6af2daad6f8b77f8077b1ab",
+      "blockNumber": "51808778"
+    },
+    "transferOracleOwnership": {
+      "txHash": "0x9aa97466ee043d98446387f11d04ae45fbf2e06296f369a310fdb3130e15ae01",
+      "blockNumber": "51808802"
+    },
+    "transferMarketOwnership": {
+      "txHash": "0xb5162d53de0e2eeacc48a27195c16d9130f8232dec90dd7402bfd07eeb663a0a",
+      "blockNumber": "51808822"
+    },
+    "transferMarginOwnership": {
+      "txHash": "0x5b60ab64d8faca5eedc3ace56639d1e56db2436b1e5a073b3083bf000c36df71",
+      "blockNumber": "51808842"
+    }
+  },
+  "deployedCode": {
+    "assetRegistry": {
+      "address": "0x0424051a55de388e7af9c71f7cf7c3e61f02f879",
+      "deployedRuntimeCodeHash": "0xdbabf37fdad96937352941fd3d1225a7101d4778bb2ee7423ced733aaf4b96dc",
+      "deployedRuntimeCodeBytes": 1139
+    },
+    "moduleFactory": {
+      "address": "0x56ad2cde82d67106ec6a06b99dde2e25a1ada572",
+      "deployedRuntimeCodeHash": "0x3e0d6970a2ff39648fd3af492ec3b609f3d897ec7301d0c1e898fe92df5e7af9",
+      "deployedRuntimeCodeBytes": 19023
+    },
+    "riskManager": {
+      "address": "0x5d79b7b9a5572f340d516d81e54fb481eeeef979",
+      "deployedRuntimeCodeHash": "0xbf6d00b58951db3d30a9c1d39015af8ddd7a7faf7fad0fc99d0870b6c8f3aac8",
+      "deployedRuntimeCodeBytes": 4843
+    },
+    "valuationOracle": {
+      "address": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
+      "deployedRuntimeCodeHash": "0x3dbe339489fac3333c0a0bf5e395fee8147f4ffd780766d50a96f33add355e22",
+      "deployedRuntimeCodeBytes": 7018
+    },
+    "repoMarket": {
+      "address": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+      "deployedRuntimeCodeHash": "0x2075a8a9ce07d0da276d1698ee2cc98c4db6a4b16c96bae1327ac61f96dfdebb",
+      "deployedRuntimeCodeBytes": 21315
+    },
+    "marketVault": {
+      "address": "0x4134c6481AaEca2C5EEC0fc1b83595fD65030C8F",
+      "deployedRuntimeCodeHash": "0x4c1ffeb0c45859a9bdcd9919c04e2e2dbc82ffafd06248854136b5b55bddd7dd",
+      "deployedRuntimeCodeBytes": 10036
+    },
+    "marketAuction": {
+      "address": "0x178D7f83b554ce68592ee2949FC0D750CbfdfdA4",
+      "deployedRuntimeCodeHash": "0x589d57dbb92daf0dd43b4676b819cc9e5615888b266297be5c841bd5cb1d5929",
+      "deployedRuntimeCodeBytes": 2586
+    },
+    "marketSettlementEscrow": {
+      "address": "0x364C4F6430c87c2013CE660c05d338b16D21a679",
+      "deployedRuntimeCodeHash": "0x06db2ccf940b6ad9d79fa2fbf961b4f9d26003968ba781ac27032a701cd63723",
+      "deployedRuntimeCodeBytes": 2878
+    },
+    "marginEngine": {
+      "address": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+      "deployedRuntimeCodeHash": "0x06fbaa115be9b9e0ed646ba607b0bd743a3a5e011c0d2ea479107445480d14a7",
+      "deployedRuntimeCodeBytes": 22820
+    },
+    "marginVault": {
+      "address": "0x5d40AB1Fe5A9a9D2E20b6f7646E3BA19a2049250",
+      "deployedRuntimeCodeHash": "0x29b172c56610b8abd0248a863a384d769295b10d61afe0e0f11a4263988dcd5d",
+      "deployedRuntimeCodeBytes": 10036
+    },
+    "marginAuction": {
+      "address": "0xbAE29a6C179BfC56733C2Fbb2Ec9c153ad22066a",
+      "deployedRuntimeCodeHash": "0x93a99076e57a9744cb2e4c9f7a843746b8fb721c471e1e35683ea8d8569d1327",
+      "deployedRuntimeCodeBytes": 2586
+    },
+    "marginSettlementEscrow": {
+      "address": "0xE982b269533E1E0a4FbB4762fa4bb42Fc20E3feA",
+      "deployedRuntimeCodeHash": "0x0bf8f84e1f6c2078b2899b34e9703ea2c4f10596e080a5674af82f8ece5b656e",
+      "deployedRuntimeCodeBytes": 2878
+    }
+  },
+  "frontendTrustedManifestDraft": {
+    "schemaVersion": 1,
+    "protocolVersion": "v2",
+    "status": "DEPLOYED_NOT_ACTIVE",
+    "chainId": 10143,
+    "deploymentId": "10143:0xe06a47378aa193f906b7d03feaa22de580913af3:067f4d758fbf852e6af4d87ba3684dc687f1f08d",
+    "contracts": {
+      "repoMarket": {
+        "address": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+        "runtimeCodeHash": "0x2075a8a9ce07d0da276d1698ee2cc98c4db6a4b16c96bae1327ac61f96dfdebb"
+      },
+      "collateralVault": {
+        "address": "0x4134c6481AaEca2C5EEC0fc1b83595fD65030C8F",
+        "runtimeCodeHash": "0x4c1ffeb0c45859a9bdcd9919c04e2e2dbc82ffafd06248854136b5b55bddd7dd"
+      },
+      "auctionHouse": {
+        "address": "0x178D7f83b554ce68592ee2949FC0D750CbfdfdA4",
+        "runtimeCodeHash": "0x589d57dbb92daf0dd43b4676b819cc9e5615888b266297be5c841bd5cb1d5929"
+      },
+      "settlementEscrow": {
+        "address": "0x364C4F6430c87c2013CE660c05d338b16D21a679",
+        "runtimeCodeHash": "0x06db2ccf940b6ad9d79fa2fbf961b4f9d26003968ba781ac27032a701cd63723"
+      },
+      "marginEngine": {
+        "address": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+        "runtimeCodeHash": "0x06fbaa115be9b9e0ed646ba607b0bd743a3a5e011c0d2ea479107445480d14a7"
+      },
+      "marginVault": {
+        "address": "0x5d40AB1Fe5A9a9D2E20b6f7646E3BA19a2049250",
+        "runtimeCodeHash": "0x29b172c56610b8abd0248a863a384d769295b10d61afe0e0f11a4263988dcd5d"
+      },
+      "marginAuctionHouse": {
+        "address": "0xbAE29a6C179BfC56733C2Fbb2Ec9c153ad22066a",
+        "runtimeCodeHash": "0x93a99076e57a9744cb2e4c9f7a843746b8fb721c471e1e35683ea8d8569d1327"
+      },
+      "marginSettlementEscrow": {
+        "address": "0xE982b269533E1E0a4FbB4762fa4bb42Fc20E3feA",
+        "runtimeCodeHash": "0x0bf8f84e1f6c2078b2899b34e9703ea2c4f10596e080a5674af82f8ece5b656e"
+      },
+      "valuationOracle": {
+        "address": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
+        "runtimeCodeHash": "0x3dbe339489fac3333c0a0bf5e395fee8147f4ffd780766d50a96f33add355e22"
+      },
+      "riskManager": {
+        "address": "0x5d79b7b9a5572f340d516d81e54fb481eeeef979",
+        "runtimeCodeHash": "0xbf6d00b58951db3d30a9c1d39015af8ddd7a7faf7fad0fc99d0870b6c8f3aac8"
+      }
+    },
+    "settlementToken": {
+      "address": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+      "name": "Access USDC",
+      "symbol": "aUSDC",
+      "decimals": 6,
+      "runtimeCodeHash": "0xa403fa29cda49311b973967ea91292c75ab23dd093a8444ae680d9099fac817a"
+    },
+    "marginAsset": {
+      "address": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+      "name": "RWCAR Receivable Note I",
+      "symbol": "RWRN01",
+      "decimals": 6,
+      "runtimeCodeHash": "0xa403fa29cda49311b973967ea91292c75ab23dd093a8444ae680d9099fac817a"
+    },
+    "assets": [
+      {
+        "address": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+        "vault": "0x4134c6481AaEca2C5EEC0fc1b83595fD65030C8F",
+        "name": "RWCAR Receivable Note I",
+        "symbol": "RWRN01",
+        "decimals": 6,
+        "runtimeCodeHash": "0xa403fa29cda49311b973967ea91292c75ab23dd093a8444ae680d9099fac817a"
+      }
+    ]
+  },
+  "serviceConfiguration": {
+    "PROTOCOL_MODULE_FACTORY_V2_ADDRESS": "0x56ad2cde82d67106ec6a06b99dde2e25a1ada572",
+    "REPO_MARKET_V2_ADDRESS": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+    "COLLATERAL_VAULT_V2_ADDRESS": "0x4134c6481AaEca2C5EEC0fc1b83595fD65030C8F",
+    "SETTLEMENT_ESCROW_V2_ADDRESS": "0x364C4F6430c87c2013CE660c05d338b16D21a679",
+    "DUTCH_AUCTION_V2_ADDRESS": "0x178D7f83b554ce68592ee2949FC0D750CbfdfdA4",
+    "MARGIN_ENGINE_V2_ADDRESS": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+    "VALUATION_ORACLE_V2_ADDRESS": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
+    "RISK_MANAGER_V2_ADDRESS": "0x5d79b7b9a5572f340d516d81e54fb481eeeef979",
+    "V2_SETTLEMENT_TOKEN_ADDRESS": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+    "V2_ALLOWED_DURATIONS": "300",
+    "V2_MARGIN_ENABLED": false,
+    "V2_REPO_POLICY_POOL_REGISTERED": false,
+    "V2_FEE_TREASURY_AUSDC_ELIGIBLE": false,
+    "V2_SETTLEMENT_ESCROW_AUSDC_READY": false,
+    "V2_MARGIN_POLICY_POOL_REGISTERED": false,
+    "V2_MARGIN_VAULT_CUSTODY_READY": false,
+    "V2_MARGIN_ESCROW_AUSDC_READY": false,
+    "V2_MARGIN_TREASURY_AUSDC_ELIGIBLE": false,
+    "V2_DEPLOYMENTS_JSON": "[{\"module\":\"REPO_MARKET\",\"address\":\"0xe06a47378aa193f906b7d03feaa22de580913af3\",\"deploymentBlock\":\"51808039\",\"metadata\":{\"engine\":\"isolated\"}},{\"module\":\"COLLATERAL_VAULT\",\"address\":\"0x4134c6481AaEca2C5EEC0fc1b83595fD65030C8F\",\"deploymentBlock\":\"51808059\",\"metadata\":{\"engine\":\"isolated\",\"controllerAddress\":\"0xe06a47378aa193f906b7d03feaa22de580913af3\",\"asset\":\"0x7A33e03B10268FFdB50e562721B092BC0Cb793F9\"}},{\"module\":\"SETTLEMENT_ESCROW\",\"address\":\"0x364C4F6430c87c2013CE660c05d338b16D21a679\",\"deploymentBlock\":\"51808039\",\"metadata\":{\"engine\":\"isolated\",\"controllerAddress\":\"0xe06a47378aa193f906b7d03feaa22de580913af3\",\"policyPool\":\"0xe06a47378aa193f906b7d03feaa22de580913af3\"}},{\"module\":\"DUTCH_AUCTION\",\"address\":\"0x178D7f83b554ce68592ee2949FC0D750CbfdfdA4\",\"deploymentBlock\":\"51808039\",\"metadata\":{\"engine\":\"isolated\",\"controllerAddress\":\"0xe06a47378aa193f906b7d03feaa22de580913af3\"}},{\"module\":\"VALUATION_ORACLE\",\"address\":\"0xdec0a543253503b5d3dd8883102e4b95a3c5bec0\",\"deploymentBlock\":\"51807999\",\"metadata\":{}},{\"module\":\"RISK_MANAGER\",\"address\":\"0x5d79b7b9a5572f340d516d81e54fb481eeeef979\",\"deploymentBlock\":\"51807979\",\"metadata\":{}},{\"module\":\"MARGIN_ENGINE\",\"address\":\"0x3d3b03c644b77faffba432ce76a915b11bdb2dee\",\"deploymentBlock\":\"51808078\",\"metadata\":{\"engine\":\"cross-margin\",\"asset\":\"0x7A33e03B10268FFdB50e562721B092BC0Cb793F9\"}},{\"module\":\"COLLATERAL_VAULT\",\"address\":\"0x5d40AB1Fe5A9a9D2E20b6f7646E3BA19a2049250\",\"deploymentBlock\":\"51808078\",\"metadata\":{\"engine\":\"cross-margin\",\"controllerAddress\":\"0x3d3b03c644b77faffba432ce76a915b11bdb2dee\",\"asset\":\"0x7A33e03B10268FFdB50e562721B092BC0Cb793F9\"}},{\"module\":\"SETTLEMENT_ESCROW\",\"address\":\"0xE982b269533E1E0a4FbB4762fa4bb42Fc20E3feA\",\"deploymentBlock\":\"51808078\",\"metadata\":{\"engine\":\"cross-margin\",\"controllerAddress\":\"0x3d3b03c644b77faffba432ce76a915b11bdb2dee\",\"policyPool\":\"0x3d3b03c644b77faffba432ce76a915b11bdb2dee\"}},{\"module\":\"DUTCH_AUCTION\",\"address\":\"0xbAE29a6C179BfC56733C2Fbb2Ec9c153ad22066a\",\"deploymentBlock\":\"51808078\",\"metadata\":{\"engine\":\"cross-margin\",\"controllerAddress\":\"0x3d3b03c644b77faffba432ce76a915b11bdb2dee\"}}]"
+  },
+  "ownership": {
+    "contracts": {
+      "assetRegistry": {
+        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "accepted": false
+      },
+      "riskManager": {
+        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "accepted": false
+      },
+      "valuationOracle": {
+        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "accepted": false
+      },
+      "repoMarket": {
+        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "accepted": false
+      },
+      "marginEngine": {
+        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "accepted": false
+      },
+      "moduleFactory": {
+        "currentOwner": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+        "pendingOwner": "0x0000000000000000000000000000000000000000",
+        "finalOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "activationComplete": false,
+        "accepted": false
+      }
+    },
+    "acceptanceTransactions": {}
+  },
+  "riskActivation": {
+    "scheduled": true,
+    "configHash": "0x6f8516a4e66d796e2a1e71346406e8f4d95be5bcc917936ea5a97458111ca62f",
+    "scheduledTransaction": "0xda6ce8e8fa200754f6c6dea8c9c7419bf5bc1d79519b9ccd5ece171b79f57f39",
+    "executeAfter": "1786234680",
+    "applied": false,
+    "appliedTransaction": null
+  },
+  "oracleActivation": {
+    "signerSetVerified": true,
+    "valuationDigest": null,
+    "evidenceHash": null,
+    "nonce": null,
+    "validUntil": null,
+    "acceptedTransaction": null
+  },
+  "cleanverse": {
+    "moduleFactoryRegistrarRole": {
+      "granted": false,
+      "requestId": null,
+      "transactionHash": null
+    },
+    "marketPolicyPool": {
+      "registered": false,
+      "ruleDigest": null,
+      "requestId": null,
+      "transactionHash": null
+    },
+    "marketVault": {
+      "registered": false,
+      "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+      "requestId": null,
+      "transactionHash": null
+    },
+    "marketSettlementEscrow": {
+      "registered": false,
+      "asset": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+      "requestId": null,
+      "transactionHash": null
+    },
+    "marginPolicyPool": {
+      "registered": false,
+      "ruleDigest": null,
+      "requestId": null,
+      "transactionHash": null
+    },
+    "marginVault": {
+      "registered": false,
+      "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+      "requestId": null,
+      "transactionHash": null
+    },
+    "marginSettlementEscrow": {
+      "registered": false,
+      "asset": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+      "requestId": null,
+      "transactionHash": null
+    }
+  },
+  "smokeProofs": {
+    "marketVaultDeposit": null,
+    "marketVaultWithdrawal": null,
+    "marketEscrowFundAndClaim": null,
+    "marginVaultDeposit": null,
+    "marginVaultWithdrawal": null,
+    "marginEscrowFundAndClaim": null,
+    "reconciliationReportHash": null
+  },
+  "readiness": {
+    "marketAssetVaultReadyTransaction": null,
+    "marginCustodyReadyTransaction": null,
+    "isolatedEntryUnpausedTransaction": null,
+    "marginEntryUnpausedTransaction": null,
+    "partialFillsEnabled": false,
+    "earlyRepurchaseEnabled": false,
+    "dutchAuctionsEnabled": false,
+    "crossMarginEnabled": false
+  },
+  "indexerSources": [
+    {
+      "module": "REPO_MARKET",
+      "address": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+      "deploymentBlock": "51808039",
+      "metadata": {
+        "engine": "isolated"
+      }
+    },
+    {
+      "module": "COLLATERAL_VAULT",
+      "address": "0x4134c6481AaEca2C5EEC0fc1b83595fD65030C8F",
+      "deploymentBlock": "51808059",
+      "metadata": {
+        "engine": "isolated",
+        "controllerAddress": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+        "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9"
+      }
+    },
+    {
+      "module": "SETTLEMENT_ESCROW",
+      "address": "0x364C4F6430c87c2013CE660c05d338b16D21a679",
+      "deploymentBlock": "51808039",
+      "metadata": {
+        "engine": "isolated",
+        "controllerAddress": "0xe06a47378aa193f906b7d03feaa22de580913af3",
+        "policyPool": "0xe06a47378aa193f906b7d03feaa22de580913af3"
+      }
+    },
+    {
+      "module": "DUTCH_AUCTION",
+      "address": "0x178D7f83b554ce68592ee2949FC0D750CbfdfdA4",
+      "deploymentBlock": "51808039",
+      "metadata": {
+        "engine": "isolated",
+        "controllerAddress": "0xe06a47378aa193f906b7d03feaa22de580913af3"
+      }
+    },
+    {
+      "module": "VALUATION_ORACLE",
+      "address": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
+      "deploymentBlock": "51807999",
+      "metadata": {}
+    },
+    {
+      "module": "RISK_MANAGER",
+      "address": "0x5d79b7b9a5572f340d516d81e54fb481eeeef979",
+      "deploymentBlock": "51807979",
+      "metadata": {}
+    },
+    {
+      "module": "MARGIN_ENGINE",
+      "address": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+      "deploymentBlock": "51808078",
+      "metadata": {
+        "engine": "cross-margin",
+        "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9"
+      }
+    },
+    {
+      "module": "COLLATERAL_VAULT",
+      "address": "0x5d40AB1Fe5A9a9D2E20b6f7646E3BA19a2049250",
+      "deploymentBlock": "51808078",
+      "metadata": {
+        "engine": "cross-margin",
+        "controllerAddress": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+        "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9"
+      }
+    },
+    {
+      "module": "SETTLEMENT_ESCROW",
+      "address": "0xE982b269533E1E0a4FbB4762fa4bb42Fc20E3feA",
+      "deploymentBlock": "51808078",
+      "metadata": {
+        "engine": "cross-margin",
+        "controllerAddress": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee",
+        "policyPool": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee"
+      }
+    },
+    {
+      "module": "DUTCH_AUCTION",
+      "address": "0xbAE29a6C179BfC56733C2Fbb2Ec9c153ad22066a",
+      "deploymentBlock": "51808078",
+      "metadata": {
+        "engine": "cross-margin",
+        "controllerAddress": "0x3d3b03c644b77faffba432ce76a915b11bdb2dee"
+      }
+    }
+  ],
+  "requiredNextSteps": [
+    "Persist this manifest and every submitted transaction line in release evidence.",
+    "Before ownership acceptance, have the current EOA owners sign the exact Cleanverse pool/factory messages; register both pools and record their approved RuleV2 evidence.",
+    "Grant REGISTER_ROLE to the exact factory, then have its activation owner call registerCvaCustody for each exact vault/CVA and escrow/settlement-token pair.",
+    "After those transactions confirm, transfer factory ownership to the reviewed final owner and have it accept; then have the pending owner accept registry, risk manager, oracle, market, and margin engine ownership.",
+    "Wait for the configured risk delay, then have the multisig apply the exact scheduled risk config.",
+    "Submit a fresh 2-of-3 signed valuation and execute real deposit/withdraw/escrow claim smoke proofs.",
+    "Only then set readiness true and unpause isolated entry; enable cross-margin last.",
+    "After every activation proof passes, review frontendTrustedManifestDraft, change only its status to ACTIVE, and provide its compact JSON as VITE_TRUSTED_V2_MANIFEST_JSON at frontend build time."
+  ]
+}
