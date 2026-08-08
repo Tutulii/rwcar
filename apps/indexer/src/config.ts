@@ -9,8 +9,10 @@ const schema = z.object({
   V1_INDEXER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   V1_KEEPER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   INDEXER_CONFIRMATIONS: z.coerce.bigint().min(1n).default(3n),
-  // Monad Testnet currently enforces a maximum 100-block eth_getLogs range.
-  INDEXER_BATCH_SIZE: z.coerce.bigint().min(1n).max(100n).default(100n),
+  // The public Monad endpoint is limited to 100 blocks; authenticated providers
+  // may support larger ranges. Keep the safe default while allowing a bounded
+  // operator override for a provider whose limit has been verified.
+  INDEXER_BATCH_SIZE: z.coerce.bigint().min(1n).max(1_000n).default(100n),
   INDEXER_POLL_MS: z.coerce.number().int().min(1_000).default(5_000),
   INDEXER_CATCHUP_DELAY_MS: z.coerce.number().int().min(0).max(5_000).default(100),
   KEEPER_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),

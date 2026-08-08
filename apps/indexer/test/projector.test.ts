@@ -48,8 +48,9 @@ describe('indexer serialization', () => {
     assert.equal(config.INDEXER_CATCHUP_DELAY_MS, 250);
   });
 
-  it('rejects log scan batches above the Monad RPC limit', () => {
-    assert.throws(() => loadConfig({ ...requiredConfig, INDEXER_BATCH_SIZE: '101' }));
+  it('accepts a verified provider range and rejects unbounded log scans', () => {
+    assert.equal(loadConfig({ ...requiredConfig, INDEXER_BATCH_SIZE: '1000' }).INDEXER_BATCH_SIZE, 1_000n);
+    assert.throws(() => loadConfig({ ...requiredConfig, INDEXER_BATCH_SIZE: '1001' }));
   });
 
   it('keeps default automation optional and validates configured signing keys', () => {

@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { createDecipheriv } from 'node:crypto';
 import { once } from 'node:events';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
@@ -39,12 +39,23 @@ if (smokeWindow.status !== 'ISOLATED_SMOKE_WINDOW_OPEN') {
 
 const rootEnv = existsSync(join(repositoryRoot, '.env')) ? parseEnv(join(repositoryRoot, '.env')) : {};
 const cleanverse = JSON.parse(readFileSync(join(repositoryRoot, '.secrets', 'cleanverse-uat.json'), 'utf8'));
+const rpcSecretPath = join(repositoryRoot, '.secrets', 'monad-rpc.json');
+const rpcSecret = existsSync(rpcSecretPath) ? JSON.parse(readFileSync(rpcSecretPath, 'utf8')) : {};
+if (existsSync(rpcSecretPath)) {
+  if ((statSync(rpcSecretPath).mode & 0o077) !== 0) throw new Error('Monad RPC credential permissions must be 0600');
+  if (typeof rpcSecret.rpcUrl !== 'string' || new URL(rpcSecret.rpcUrl).protocol !== 'https:') {
+    throw new Error('Monad RPC credential must contain an HTTPS rpcUrl');
+  }
+  if (!Number.isInteger(rpcSecret.maxLogRange) || rpcSecret.maxLogRange < 1 || rpcSecret.maxLogRange > 1_000) {
+    throw new Error('Monad RPC maxLogRange must be an integer from 1 to 1000');
+  }
+}
 const databaseUrl = process.env.DATABASE_URL?.trim() || 'postgresql://rwcar@127.0.0.1:5432/rwcar';
 const common = {
   ...process.env,
   NODE_ENV: 'development',
   DATABASE_URL: databaseUrl,
-  MONAD_RPC_URL: process.env.MONAD_RPC_URL?.trim() || 'https://testnet-rpc.monad.xyz',
+  MONAD_RPC_URL: process.env.MONAD_RPC_URL?.trim() || rpcSecret.rpcUrl || 'https://testnet-rpc.monad.xyz',
   REPO_MARKET_ADDRESS: v1.repoMarket,
   REPO_MARKET_DEPLOYMENT_BLOCK: String(v1.deploymentBlock),
   ASSET_REGISTRY_ADDRESS: deployment.contracts.assetRegistry,
@@ -73,7 +84,7 @@ const common = {
   CLEANVERSE_API_ID: cleanverse.apiId,
   CLEANVERSE_API_KEY: cleanverse.apiKey,
   INDEXER_CONFIRMATIONS: '3',
-  INDEXER_BATCH_SIZE: '100',
+  INDEXER_BATCH_SIZE: String(rpcSecret.maxLogRange || 100),
   INDEXER_POLL_MS: '5000',
   INDEXER_CATCHUP_DELAY_MS: '250',
   V1_INDEXER_ENABLED: 'false',
