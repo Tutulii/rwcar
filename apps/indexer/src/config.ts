@@ -20,6 +20,44 @@ const schema = z.object({
   V2_AUTOMATION_MAX_CHECKPOINT_LAG: z.coerce.bigint().min(0n).max(1_000n).default(100n),
   V2_DEPLOYMENTS_JSON: z.string().default('[]'),
   V2_SETTLEMENT_TOKEN_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
+  V2_ORACLE_HEARTBEAT_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  V2_ORACLE_HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(300_000).max(3_600_000).default(600_000),
+  V2_ORACLE_HEARTBEAT_VALIDITY_SECONDS: z.coerce.number().int().min(3_600).max(604_800).default(86_400),
+  V2_ORACLE_HEARTBEAT_PRICE_E18: z.string().regex(/^\d+$/).refine((value) => BigInt(value) > 0n).optional(),
+  V2_ORACLE_HEARTBEAT_EVIDENCE_HASH: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+  V2_ORACLE_SIGNER_1_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+  V2_ORACLE_SIGNER_2_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+}).superRefine((value, context) => {
+  if (!value.V2_ORACLE_HEARTBEAT_ENABLED) return;
+  const required = [
+    ['V2_SETTLEMENT_TOKEN_ADDRESS', value.V2_SETTLEMENT_TOKEN_ADDRESS],
+    ['V2_ORACLE_HEARTBEAT_PRICE_E18', value.V2_ORACLE_HEARTBEAT_PRICE_E18],
+    ['V2_ORACLE_HEARTBEAT_EVIDENCE_HASH', value.V2_ORACLE_HEARTBEAT_EVIDENCE_HASH],
+    ['V2_ORACLE_SIGNER_1_PRIVATE_KEY', value.V2_ORACLE_SIGNER_1_PRIVATE_KEY],
+    ['V2_ORACLE_SIGNER_2_PRIVATE_KEY', value.V2_ORACLE_SIGNER_2_PRIVATE_KEY],
+  ] as const;
+  for (const [name, configured] of required) {
+    if (configured) continue;
+    context.addIssue({ code: 'custom', path: [name], message: `${name} is required when the oracle heartbeat is enabled` });
+  }
+  if (
+    value.V2_ORACLE_SIGNER_1_PRIVATE_KEY
+      && value.V2_ORACLE_SIGNER_2_PRIVATE_KEY
+      && value.V2_ORACLE_SIGNER_1_PRIVATE_KEY.toLowerCase() === value.V2_ORACLE_SIGNER_2_PRIVATE_KEY.toLowerCase()
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['V2_ORACLE_SIGNER_2_PRIVATE_KEY'],
+      message: 'Oracle heartbeat signers must use distinct private keys',
+    });
+  }
+  if (value.V2_ORACLE_HEARTBEAT_VALIDITY_SECONDS * 1_000 <= value.V2_ORACLE_HEARTBEAT_INTERVAL_MS) {
+    context.addIssue({
+      code: 'custom',
+      path: ['V2_ORACLE_HEARTBEAT_VALIDITY_SECONDS'],
+      message: 'Oracle heartbeat validity must exceed its publication interval',
+    });
+  }
 });
 
 export type IndexerConfig = z.infer<typeof schema>;

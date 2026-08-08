@@ -174,6 +174,14 @@ export const signedValuationOracleAbi = [
     ] },
     { name: 'signatures', type: 'bytes[]' },
   ], outputs: [{ name: 'digest', type: 'bytes32' }] },
+  { type: 'function', name: 'latest', stateMutability: 'view', inputs: [{ name: 'asset', type: 'address' }], outputs: [
+    { name: 'valuation', type: 'tuple', components: [
+      { name: 'priceE18', type: 'uint256' }, { name: 'observedAt', type: 'uint64' },
+      { name: 'validUntil', type: 'uint64' }, { name: 'nonce', type: 'uint256' },
+      { name: 'digest', type: 'bytes32' }, { name: 'settlementToken', type: 'address' },
+      { name: 'evidenceHash', type: 'bytes32' },
+    ] },
+  ] },
   { type: 'function', name: 'signerSet', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address[3]' }] },
   { type: 'function', name: 'lastNonce', stateMutability: 'view', inputs: [{ name: 'asset', type: 'address' }], outputs: [{ name: 'nonce', type: 'uint256' }] },
   { type: 'function', name: 'nonceUnavailable', stateMutability: 'view', inputs: [

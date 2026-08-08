@@ -16,7 +16,7 @@ This validates the protected UAT inputs and creates three ignored, mode-0600 fil
 - `.secrets/railway-indexer.env`
 - `.secrets/railway-web.env`
 
-Do not commit, upload, or share these files. Paste each file only into the matching Railway service variable editor. The generator places only the permissionless, gas-funded keeper key on the worker; owner, deployer, treasury, and oracle signer keys are never exported.
+Do not commit, upload, or share these files. Paste each file only into the matching Railway service variable editor. For the Monad UAT demo, the generator places the permissionless gas-funded keeper and two oracle heartbeat signer keys only on the indexer worker. The first oracle signer broadcasts heartbeat transactions on a nonce stream isolated from lifecycle automation. Owner, deployer, seller, buyer, and treasury keys are never exported.
 
 ## 2. Create services with exact names
 
@@ -28,6 +28,8 @@ Create one Railway project and use these exact service names so the generated va
 4. Add the same repository again as `rwcar-web`.
 
 Keep `rwcar-indexer` at exactly one replica because it owns one keeper transaction nonce stream.
+
+The same worker refreshes the already-approved RWRN01 valuation every ten minutes. It verifies both signers against the live oracle and refuses to change the configured price, settlement token, or canonical evidence hash. This co-located signer arrangement is restricted to Monad UAT; production must use independently operated or HSM-backed signing services.
 
 ## 3. Select each config file
 
@@ -84,5 +86,5 @@ The last wallet-signed trade is release evidence, not a server deployment prereq
 - Rotate any credential that has been exposed outside the protected local files before a production launch.
 - Keep API, database, and indexer on Railway private networking; expose only API and web domains.
 - Keep the generated admin key private and use internal routes only for controlled operations.
-- Refresh the signed oracle valuation shortly before the demo because the active risk configuration enforces a one-hour maximum oracle age.
+- Confirm the indexer log shows a successful RWRN01 oracle heartbeat within the previous ten minutes. The active risk configuration enforces a one-hour maximum oracle age.
 - Confirm the R2 bucket receives encrypted evidence before relying on document upload in a demo.
