@@ -27,8 +27,10 @@ describe('Railway deployment packaging', () => {
 
   it('migrates and safely bootstraps before the API release starts', () => {
     const config = json('deploy/railway/api.railway.json');
-    assert.match(config.deploy.preDeployCommand, /packages\/db\/dist\/migrate\.js/);
-    assert.match(config.deploy.preDeployCommand, /packages\/db\/dist\/bootstrap-uat\.js/);
+    assert.deepEqual(config.deploy.preDeployCommand, [
+      'node packages/db/dist/migrate.js',
+      'node packages/db/dist/bootstrap-uat.js',
+    ]);
     assert.equal(config.deploy.healthcheckPath, '/health');
   });
 
