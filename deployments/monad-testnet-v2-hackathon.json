@@ -253,8 +253,8 @@
       "blockNumber": "51826299"
     },
     "publishInitialValuation": {
-      "txHash": "0xeafdf3e2727059ec7d2ea5d0b27fd6ba71a35ee863036a3af5bd402c6fc3f5b6",
-      "blockNumber": "51970029"
+      "txHash": "0x8482c466fec122fd75a09368fbf42a9e11039ea625c59584afdf44730c8e6de8",
+      "blockNumber": "51999130"
     },
     "marketAssetVaultReady": {
       "txHash": "0x16e5a3cdf82a077f68d3513b6e040e57097dfefc16b31feeb119ace7572ed7eb",
@@ -517,11 +517,11 @@
   },
   "oracleActivation": {
     "signerSetVerified": true,
-    "valuationDigest": "0x2a5fb95b491a1f8b88641a99bec4b168d0163191bcdaba2ea74620e000eb98a5",
+    "valuationDigest": "0x36cdd39975dbd00b7bf880b784f428326ceafe74d61690bc892110fdc3052664",
     "evidenceHash": "0xd16689da2bcaf7f8ade3b397024af4a853ad2ec4178bcc0bef7e288b2370f15f",
-    "nonce": "4",
-    "validUntil": "1786283897",
-    "acceptedTransaction": "0xeafdf3e2727059ec7d2ea5d0b27fd6ba71a35ee863036a3af5bd402c6fc3f5b6"
+    "nonce": "5",
+    "validUntil": "1786292798",
+    "acceptedTransaction": "0x8482c466fec122fd75a09368fbf42a9e11039ea625c59584afdf44730c8e6de8"
   },
   "cleanverse": {
     "moduleFactoryRegistrarRole": {

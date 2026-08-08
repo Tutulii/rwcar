@@ -1,5 +1,5 @@
 {
-  "sourceRevision": "793b20a54543dbe4e0919a5e9002b06000ca7fd5",
+  "sourceRevision": "71d74cb02d2ff89784b3109b342f10e15724941c",
   "status": "VALUATION_ACTIVE",
   "chainId": 10143,
   "oracle": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
@@ -14,13 +14,13 @@
     "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
     "settlementToken": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
     "priceE18": "1000000000000000000",
-    "observedAt": 1786197497,
-    "validUntil": 1786283897,
-    "nonce": "4",
+    "observedAt": 1786206398,
+    "validUntil": 1786292798,
+    "nonce": "5",
     "evidenceHash": "0xd16689da2bcaf7f8ade3b397024af4a853ad2ec4178bcc0bef7e288b2370f15f"
   },
-  "digest": "0x2a5fb95b491a1f8b88641a99bec4b168d0163191bcdaba2ea74620e000eb98a5",
-  "completedAt": "2026-08-08T13:58:23.608Z",
-  "transactionHash": "0xeafdf3e2727059ec7d2ea5d0b27fd6ba71a35ee863036a3af5bd402c6fc3f5b6",
-  "blockNumber": "51970029"
+  "digest": "0x36cdd39975dbd00b7bf880b784f428326ceafe74d61690bc892110fdc3052664",
+  "completedAt": "2026-08-08T16:26:43.218Z",
+  "transactionHash": "0x8482c466fec122fd75a09368fbf42a9e11039ea625c59584afdf44730c8e6de8",
+  "blockNumber": "51999130"
 }
