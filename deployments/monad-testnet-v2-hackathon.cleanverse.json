@@ -1,0 +1,89 @@
+{
+  "sourceRevision": "e523618b3db15b3b19debaa80f736b9c8b464e18",
+  "chain": "monad",
+  "status": "CLEANVERSE_REGISTERED_SMOKE_PENDING",
+  "subjects": {
+    "repoMarket": {
+      "address": "0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379",
+      "owner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+      "message": "monad0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379"
+    },
+    "marginEngine": {
+      "address": "0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2",
+      "owner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+      "message": "monad0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2"
+    },
+    "moduleFactory": {
+      "address": "0x56ad2cde82d67106ec6a06b99dde2e25a1ada572",
+      "owner": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+      "message": "monad0x56ad2cde82d67106ec6a06b99dde2e25a1ada572"
+    }
+  },
+  "custodyBindings": [
+    {
+      "key": "marketVault",
+      "pool": "0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379",
+      "token": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+      "custody": "0x5933Bff2a277df198a0eBEC0e7B98A125e57e55c"
+    },
+    {
+      "key": "marketSettlementEscrow",
+      "pool": "0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379",
+      "token": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+      "custody": "0xa67f46666F2126A11250B4E291C44970E519731e"
+    },
+    {
+      "key": "marginVault",
+      "pool": "0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2",
+      "token": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+      "custody": "0xAa7eAae9D03207157CfB51b885f24AD5b5205436"
+    },
+    {
+      "key": "marginSettlementEscrow",
+      "pool": "0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2",
+      "token": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+      "custody": "0xdbff3ACffDafd7171c9b5a4e72418Dd198151E7E"
+    }
+  ],
+  "rule": {
+    "allowed_group": "",
+    "allowed_sub_group": "",
+    "min_tier": 30,
+    "min_sub_tier": 0,
+    "is_black_list": false,
+    "countries": []
+  },
+  "ruleDigest": "0xc051ebb6fa207ff1c1af5fd6145c5c78b66eb4a756350ade2ed19b560491255b",
+  "transactions": {
+    "marketPolicyPool": {
+      "requestId": "f6b6067c-612c-4cc1-a5cf-295781cb524d",
+      "txHash": "0x900a0b4ff249b96ea09fd8d372256fa6a1b8848e94b07e5c6998d9b4b83da4d9",
+      "blockNumber": "51825943"
+    },
+    "marginPolicyPool": {
+      "requestId": "2507865e-e863-4595-b553-598c7977013b",
+      "txHash": "0x8ee49a4fabed5bc96b0a00f78b1a8767aade618eb4729ad305496ee027a2ccb6",
+      "blockNumber": "51825965"
+    },
+    "marketVault": {
+      "txHash": "0x66ee751045f88d514d6e88e22cf473098de413931d4ca9dcf910bfdf282bcfa9",
+      "blockNumber": "51825988",
+      "registrationKey": "0x5917d0fc0067053486bd83232d05f4c4d0e261246b1ab08144be69d2742d49a6"
+    },
+    "marketSettlementEscrow": {
+      "txHash": "0xd70162f0bd3543bed587fa656b1bc3e0b564809fdee7dff51d54ace9ca0c654d",
+      "blockNumber": "51826009",
+      "registrationKey": "0x93a55533a1f318777a26a3af410f0cf895494b578ebeeca1b46d58ddd8cfe38c"
+    },
+    "marginVault": {
+      "txHash": "0x87e70543f50b18e27d5ce4e6753ff6fe39fe6d34a4c5c08f9c47190c63a3b8b6",
+      "blockNumber": "51826028",
+      "registrationKey": "0x7687774d8f3f44d72d8cc5823c7f2a0d2acecfc58307a118dec63c95f2d211a9"
+    },
+    "marginSettlementEscrow": {
+      "txHash": "0xeb03337d02c1acee111260aced0f30616253a70c690e35a6b957f755f2950c29",
+      "blockNumber": "51826049",
+      "registrationKey": "0xcbfc22159b41b34c265d44e8a2f874a44985c617fbe409a55c9d3808601f4206"
+    }
+  }
+}

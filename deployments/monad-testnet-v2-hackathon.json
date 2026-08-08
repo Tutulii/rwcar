@@ -435,45 +435,45 @@
   },
   "cleanverse": {
     "moduleFactoryRegistrarRole": {
-      "granted": false,
+      "granted": true,
       "requestId": null,
       "transactionHash": null
     },
     "marketPolicyPool": {
-      "registered": false,
-      "ruleDigest": null,
-      "requestId": null,
-      "transactionHash": null
+      "registered": true,
+      "ruleDigest": "0xc051ebb6fa207ff1c1af5fd6145c5c78b66eb4a756350ade2ed19b560491255b",
+      "requestId": "f6b6067c-612c-4cc1-a5cf-295781cb524d",
+      "transactionHash": "0x900a0b4ff249b96ea09fd8d372256fa6a1b8848e94b07e5c6998d9b4b83da4d9"
     },
     "marketVault": {
-      "registered": false,
+      "registered": true,
       "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
       "requestId": null,
-      "transactionHash": null
+      "transactionHash": "0x66ee751045f88d514d6e88e22cf473098de413931d4ca9dcf910bfdf282bcfa9"
     },
     "marketSettlementEscrow": {
-      "registered": false,
+      "registered": true,
       "asset": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
       "requestId": null,
-      "transactionHash": null
+      "transactionHash": "0xd70162f0bd3543bed587fa656b1bc3e0b564809fdee7dff51d54ace9ca0c654d"
     },
     "marginPolicyPool": {
-      "registered": false,
-      "ruleDigest": null,
-      "requestId": null,
-      "transactionHash": null
+      "registered": true,
+      "ruleDigest": "0xc051ebb6fa207ff1c1af5fd6145c5c78b66eb4a756350ade2ed19b560491255b",
+      "requestId": "2507865e-e863-4595-b553-598c7977013b",
+      "transactionHash": "0x8ee49a4fabed5bc96b0a00f78b1a8767aade618eb4729ad305496ee027a2ccb6"
     },
     "marginVault": {
-      "registered": false,
+      "registered": true,
       "asset": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
       "requestId": null,
-      "transactionHash": null
+      "transactionHash": "0x87e70543f50b18e27d5ce4e6753ff6fe39fe6d34a4c5c08f9c47190c63a3b8b6"
     },
     "marginSettlementEscrow": {
-      "registered": false,
+      "registered": true,
       "asset": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
       "requestId": null,
-      "transactionHash": null
+      "transactionHash": "0xeb03337d02c1acee111260aced0f30616253a70c690e35a6b957f755f2950c29"
     }
   },
   "smokeProofs": {
