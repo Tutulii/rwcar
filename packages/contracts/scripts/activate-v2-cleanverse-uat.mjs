@@ -1,5 +1,5 @@
 import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { createCipheriv, createDecipheriv } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -188,9 +188,10 @@ const encryptBody = (body) => {
 };
 const cleanverseRequest = async (path, body, encrypted = false) => {
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    const requestId = randomUUID();
     const response = await fetch(`${credentials.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'api-id': credentials.apiId },
+      headers: { 'content-type': 'application/json', 'api-id': credentials.apiId, 'X-Request-ID': requestId },
       body: JSON.stringify(encrypted ? encryptBody(body) : body),
       signal: AbortSignal.timeout(15_000),
     });
@@ -202,7 +203,7 @@ const cleanverseRequest = async (path, body, encrypted = false) => {
     if (!response.ok || !['0000', 0, '0'].includes(json.code)) {
       throw new Error(`Cleanverse ${path} failed: code=${String(json.code)} message=${String(json.message ?? response.status)}`);
     }
-    return json;
+    return { ...json, __requestId: requestId };
   }
   throw new Error(`Cleanverse ${path} retry budget exhausted`);
 };
@@ -220,10 +221,10 @@ const mutationHash = (response, stage) => {
   return hash;
 };
 const record = (entry) => appendFileSync(journalPath, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, { mode: 0o600 });
-const waitForSuccess = async (stage, hash) => {
+const waitForSuccess = async (stage, hash, requestId = undefined) => {
   const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 3, timeout: 180_000 });
   if (receipt.status !== 'success') throw new Error(`${stage} reverted: ${hash}`);
-  record({ stage, txHash: hash, blockNumber: receipt.blockNumber.toString(), state: 'CONFIRMED' });
+  record({ stage, ...(requestId ? { requestId } : {}), txHash: hash, blockNumber: receipt.blockNumber.toString(), state: 'CONFIRMED' });
   return receipt;
 };
 
@@ -241,7 +242,11 @@ if (existsSync(journalPath)) {
   for (const line of readFileSync(journalPath, 'utf8').split(/\n/).filter(Boolean)) {
     const entry = JSON.parse(line);
     if (entry.state === 'CONFIRMED' && /^0x[a-fA-F0-9]{64}$/.test(entry.txHash ?? '')) {
-      priorTransactions[entry.stage] = { txHash: entry.txHash, blockNumber: String(entry.blockNumber) };
+      priorTransactions[entry.stage] = {
+        txHash: entry.txHash,
+        blockNumber: String(entry.blockNumber),
+        ...(entry.requestId ? { requestId: entry.requestId } : {}),
+      };
     }
   }
 }
@@ -258,9 +263,9 @@ for (const [key, pool, signature] of [
       owner_signature: signature,
     }, true);
     const hash = mutationHash(response, key);
-    record({ stage: key, txHash: hash, state: 'SUBMITTED' });
-    const receipt = await waitForSuccess(key, hash);
-    evidence.transactions[key] = { txHash: hash, blockNumber: receipt.blockNumber.toString() };
+    record({ stage: key, requestId: response.__requestId, txHash: hash, state: 'SUBMITTED' });
+    const receipt = await waitForSuccess(key, hash, response.__requestId);
+    evidence.transactions[key] = { requestId: response.__requestId, txHash: hash, blockNumber: receipt.blockNumber.toString() };
   } else if (!evidence.transactions[key]?.txHash) {
     evidence.transactions[key] = { alreadyRegistered: true };
   }
@@ -280,9 +285,9 @@ if (!registrarGranted) {
     owner_signature: signatures.moduleFactory,
   }, true);
   const hash = mutationHash(response, 'moduleFactoryRegistrarRole');
-  record({ stage: 'moduleFactoryRegistrarRole', txHash: hash, state: 'SUBMITTED' });
-  const receipt = await waitForSuccess('moduleFactoryRegistrarRole', hash);
-  evidence.transactions.moduleFactoryRegistrarRole = { txHash: hash, blockNumber: receipt.blockNumber.toString() };
+  record({ stage: 'moduleFactoryRegistrarRole', requestId: response.__requestId, txHash: hash, state: 'SUBMITTED' });
+  const receipt = await waitForSuccess('moduleFactoryRegistrarRole', hash, response.__requestId);
+  evidence.transactions.moduleFactoryRegistrarRole = { requestId: response.__requestId, txHash: hash, blockNumber: receipt.blockNumber.toString() };
   registrarGranted = await publicClient.readContract({
     address: deployment.externalContracts.complianceValidator,
     abi: validatorAbi,
@@ -333,11 +338,12 @@ for (const pool of poolAddresses) {
 writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o644 });
 deployment.cleanverse.moduleFactoryRegistrarRole = {
   granted: true,
-  requestId: null,
+  requestId: evidence.transactions.moduleFactoryRegistrarRole?.requestId ?? null,
   transactionHash: evidence.transactions.moduleFactoryRegistrarRole?.txHash ?? null,
 };
 for (const key of ['marketPolicyPool', 'marketVault', 'marketSettlementEscrow', 'marginPolicyPool', 'marginVault', 'marginSettlementEscrow']) {
   deployment.cleanverse[key].registered = true;
+  deployment.cleanverse[key].requestId = evidence.transactions[key]?.requestId ?? null;
   deployment.cleanverse[key].transactionHash = evidence.transactions[key]?.txHash ?? null;
 }
 deployment.cleanverse.marketPolicyPool.ruleDigest = ruleDigest;
