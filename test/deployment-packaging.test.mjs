@@ -20,6 +20,7 @@ describe('Railway deployment packaging', () => {
       assert.equal(config.$schema, 'https://railway.com/railway.schema.json');
       assert.equal(config.build.builder, 'DOCKERFILE');
       assert.equal(config.build.dockerfilePath, dockerfilePath);
+      assert.equal(config.build.watchPatterns.includes(`/deploy/railway/${service}.railway.json`), true);
       assert.equal(config.deploy.restartPolicyType, 'ON_FAILURE');
       assert.equal(config.deploy.restartPolicyMaxRetries, 10);
     }

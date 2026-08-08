@@ -7,6 +7,7 @@
       "/apps/api/**",
       "/packages/db/**",
       "/packages/shared/**",
+      "/deploy/railway/api.railway.json",
       "/Dockerfile.api",
       "/package.json",
       "/package-lock.json"
