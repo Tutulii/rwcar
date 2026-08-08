@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  encodeAbiParameters,
   http,
   isAddress,
   keccak256,
@@ -15,8 +16,10 @@ import { privateKeyToAccount } from 'viem/accounts';
 const CHAIN_ID = 10_143;
 const EXECUTION_CONFIRMATION = 'DEPLOY_RWCAR_V2_TO_MONAD_TESTNET_10143';
 const KEY_ATTESTATION = 'FRESH_UAT_KEYS_NOT_PREVIOUSLY_SHARED';
+const HACKATHON_ZERO_DELAY_CONFIRMATION = 'ENABLE_ZERO_DELAY_ONLY_FOR_MONAD_HACKATHON_UAT';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const repositoryRoot = join(packageRoot, '../..');
 
 const required = (name) => {
   const value = process.env[name]?.trim();
@@ -83,6 +86,27 @@ const sourceRevision = optional('V2_SOURCE_REVISION', 'RECORD_BEFORE_EXECUTION')
 if (mode === 'execute' && sourceRevision === 'RECORD_BEFORE_EXECUTION') {
   throw new Error('V2_SOURCE_REVISION is required for execution');
 }
+const sharedDeploymentPath = process.env.V2_REUSE_SHARED_DEPLOYMENT_PATH?.trim();
+if (
+  sharedDeploymentPath
+    && !resolve(sharedDeploymentPath).startsWith(`${resolve(repositoryRoot, 'deployments')}${sep}`)
+) {
+  throw new Error('V2_REUSE_SHARED_DEPLOYMENT_PATH must be inside the repository deployments directory');
+}
+const sharedDeployment = sharedDeploymentPath
+  ? JSON.parse(readFileSync(sharedDeploymentPath, 'utf8'))
+  : null;
+const hackathonZeroDelay = boolean('V2_HACKATHON_UAT_ZERO_DELAY', false);
+if (hackathonZeroDelay && sharedDeployment === null) {
+  throw new Error('Zero-delay UAT recovery must reuse the reviewed shared deployment');
+}
+if (
+  mode === 'execute'
+    && hackathonZeroDelay
+    && required('V2_HACKATHON_UAT_CONFIRM') !== HACKATHON_ZERO_DELAY_CONFIRMATION
+) {
+  throw new Error(`V2_HACKATHON_UAT_CONFIRM must equal ${HACKATHON_ZERO_DELAY_CONFIRMATION}`);
+}
 
 const deployer = address('V2_DEPLOYER_ADDRESS');
 const owner = address('V2_OWNER_ADDRESS');
@@ -111,9 +135,12 @@ if (new Set(allowedDurations).size !== allowedDurations.length) {
 const protocolFeeBps = integer('V2_PROTOCOL_FEE_BPS', 15, { max: 9_999 });
 const gracePeriod = integer('V2_GRACE_PERIOD_SECONDS', 120, { min: 1, max: 30 * 24 * 60 * 60 });
 const riskConfigDelay = integer('V2_RISK_CONFIG_DELAY_SECONDS', 86_400, {
-  min: 3_600,
+  min: hackathonZeroDelay ? 0 : 3_600,
   max: 30 * 24 * 60 * 60,
 });
+if (hackathonZeroDelay && riskConfigDelay !== 0) {
+  throw new Error('The hackathon UAT recovery profile requires an exact zero-second risk delay');
+}
 const cvaDecimals = integer('CVA_ASSET_DECIMALS', 6, { max: 18 });
 const confirmations = integer('V2_DEPLOY_CONFIRMATIONS', 3, { min: 2, max: 20 });
 
@@ -148,6 +175,10 @@ if (riskConfig.auctionFloorBps > riskConfig.auctionStartBps) {
 if (riskConfig.maxDefaultRateBps < riskConfig.defaultSpreadBps) {
   throw new Error('V2_MAX_DEFAULT_RATE_BPS cannot be below V2_DEFAULT_SPREAD_BPS');
 }
+const applyConfigAbi = artifacts.RiskManagerV2.abi.find(
+  (item) => item.type === 'function' && item.name === 'applyConfig',
+);
+const expectedRiskConfigHash = keccak256(encodeAbiParameters([applyConfigAbi.inputs[1]], [riskConfig]));
 
 const distinctOracleSigners = new Set(oracleSigners.map((value) => value.toLowerCase()));
 if (distinctOracleSigners.size !== 3) throw new Error('The three oracle signers must be distinct');
@@ -164,6 +195,27 @@ if (!allowRoleOverlap) {
 if (cvaAsset.toLowerCase() === settlementToken.toLowerCase()) {
   throw new Error('Collateral CVA and settlement token must be different assets');
 }
+if (sharedDeployment) {
+  const expectedShared = [
+    ['chainId', String(sharedDeployment.network?.chainId), String(CHAIN_ID)],
+    ['deployer', sharedDeployment.roles?.deployer, deployer],
+    ['pending owner', sharedDeployment.roles?.pendingOwner, owner],
+    ['factory activation owner', sharedDeployment.roles?.factoryActivationOwner, factoryActivationOwner],
+    ['CVA asset', sharedDeployment.externalContracts?.cvaAsset, cvaAsset],
+    ['settlement token', sharedDeployment.externalContracts?.settlementToken, settlementToken],
+    ['validator', sharedDeployment.externalContracts?.complianceValidator, complianceValidator],
+  ];
+  for (const [label, actual, expected] of expectedShared) {
+    if (String(actual).toLowerCase() !== String(expected).toLowerCase()) {
+      throw new Error(`Shared deployment ${label} mismatch`);
+    }
+  }
+  for (const key of ['assetRegistry', 'moduleFactory', 'valuationOracle']) {
+    if (!isAddress(sharedDeployment.contracts?.[key])) {
+      throw new Error(`Shared deployment is missing ${key}`);
+    }
+  }
+}
 
 const artifactManifest = Object.fromEntries(Object.entries(artifacts).map(([name, compiled]) => [name, {
   sourceName: compiled.sourceName,
@@ -179,6 +231,14 @@ const baseManifest = {
   status: mode === 'execute' ? 'DEPLOYING_NOT_ACTIVE' : 'PLANNED_NOT_ACTIVE',
   network: { name: 'Monad Testnet', chainId: CHAIN_ID, rpcUrlRecordedSeparately: true },
   generatedAt: new Date().toISOString(),
+  deploymentProfile: hackathonZeroDelay ? 'MONAD_HACKATHON_UAT_ZERO_DELAY' : 'STANDARD_UAT',
+  supersedes: sharedDeployment ? {
+    deployment: 'monad-testnet-v2.json',
+    riskManager: sharedDeployment.contracts.riskManager,
+    repoMarket: sharedDeployment.contracts.repoMarket,
+    marginEngine: sharedDeployment.contracts.marginEngine,
+    reason: 'Replace only the time-locked engine layer for the bounded Monad hackathon UAT environment',
+  } : null,
   release: {
     sourceRevision,
     compiler: 'solc 0.8.24; optimizer 500 runs; viaIR true',
@@ -201,6 +261,7 @@ const baseManifest = {
     ownerContractRequired: !allowEoaOwner,
     factoryActivationOwnerMustBeEoa: true,
     executeRequiresConfirmation: EXECUTION_CONFIRMATION,
+    zeroDelayLimitedToHackathonUat: hackathonZeroDelay,
   },
 };
 
@@ -208,10 +269,10 @@ if (mode === 'plan') {
   console.log(JSON.stringify({
     ...baseManifest,
     contracts: {
-      assetRegistry: null,
-      moduleFactory: null,
+      assetRegistry: sharedDeployment?.contracts.assetRegistry ?? null,
+      moduleFactory: sharedDeployment?.contracts.moduleFactory ?? null,
       riskManager: null,
-      valuationOracle: null,
+      valuationOracle: sharedDeployment?.contracts.valuationOracle ?? null,
       repoMarket: null,
       marketVault: null,
       marketAuction: null,
@@ -385,15 +446,69 @@ if (factoryActivationOwnerCode && factoryActivationOwnerCode !== '0x') {
 }
 if (await publicClient.getBalance({ address: deployer }) === 0n) throw new Error('Deployer has no MON for gas');
 
+const reusedContract = (key, contractName) => ({
+  address: sharedDeployment.contracts[key],
+  blockNumber: BigInt(sharedDeployment.deploymentBlocks[key]),
+  abi: artifacts[contractName].abi,
+});
+
 // Cleanverse currently verifies an EIP-191 signature against factory.owner(), so
 // a fresh activation EOA owns only this constrained factory during registration.
-// It must hand ownership to the reviewed final owner after every custody proof.
-const moduleFactory = await deploy('deployModuleFactory', 'ProtocolModuleFactoryV2', [factoryActivationOwner, complianceValidator]);
-const assetRegistry = await deploy('deployAssetRegistry', 'CvaAssetRegistry', [deployer]);
-const riskManager = await deploy('deployRiskManager', 'RiskManagerV2', [deployer, riskConfigDelay]);
-const valuationOracle = await deploy('deployValuationOracle', 'SignedValuationOracle', [deployer, oracleSigners]);
+// The hackathon recovery reuses that exact already-authorized factory.
+const moduleFactory = sharedDeployment
+  ? reusedContract('moduleFactory', 'ProtocolModuleFactoryV2')
+  : await deploy('deployModuleFactory', 'ProtocolModuleFactoryV2', [factoryActivationOwner, complianceValidator]);
+const assetRegistry = sharedDeployment
+  ? reusedContract('assetRegistry', 'CvaAssetRegistry')
+  : await deploy('deployAssetRegistry', 'CvaAssetRegistry', [deployer]);
+const valuationOracle = sharedDeployment
+  ? reusedContract('valuationOracle', 'SignedValuationOracle')
+  : await deploy('deployValuationOracle', 'SignedValuationOracle', [deployer, oracleSigners]);
 
-await write('enableCvaAsset', assetRegistry, 'setAsset', [cvaAsset, true, cvaDecimals, referenceHash]);
+if (sharedDeployment) {
+  await Promise.all([
+    assertCode('Shared module factory', moduleFactory.address),
+    assertCode('Shared asset registry', assetRegistry.address),
+    assertCode('Shared valuation oracle', valuationOracle.address),
+    assertCode('Superseded repo market', sharedDeployment.contracts.repoMarket),
+    assertCode('Superseded margin engine', sharedDeployment.contracts.marginEngine),
+  ]);
+  const [
+    factoryOwner,
+    factoryPendingOwner,
+    factoryValidator,
+    registryEnabled,
+    sharedSigners,
+    oldMarketPaused,
+    oldMarginPaused,
+  ] = await Promise.all([
+    publicClient.readContract({ address: moduleFactory.address, abi: moduleFactory.abi, functionName: 'owner' }),
+    publicClient.readContract({ address: moduleFactory.address, abi: moduleFactory.abi, functionName: 'pendingOwner' }),
+    publicClient.readContract({ address: moduleFactory.address, abi: moduleFactory.abi, functionName: 'validator' }),
+    publicClient.readContract({ address: assetRegistry.address, abi: assetRegistry.abi, functionName: 'isAssetEnabled', args: [cvaAsset] }),
+    publicClient.readContract({ address: valuationOracle.address, abi: valuationOracle.abi, functionName: 'signerSet' }),
+    publicClient.readContract({ address: sharedDeployment.contracts.repoMarket, abi: artifacts.RepoMarketV2.abi, functionName: 'entryPaused' }),
+    publicClient.readContract({ address: sharedDeployment.contracts.marginEngine, abi: artifacts.MarginEngineV2.abi, functionName: 'entryPaused' }),
+  ]);
+  if (
+    factoryOwner.toLowerCase() !== factoryActivationOwner.toLowerCase()
+      || factoryPendingOwner.toLowerCase() !== ZERO_ADDRESS
+      || factoryValidator.toLowerCase() !== complianceValidator.toLowerCase()
+  ) throw new Error('Shared factory is no longer in its reviewed activation state');
+  if (!registryEnabled) throw new Error('Shared registry no longer enables the configured CVA');
+  if (sharedSigners.some((signer, index) => signer.toLowerCase() !== oracleSigners[index].toLowerCase())) {
+    throw new Error('Shared oracle signer set no longer matches the reviewed deployment');
+  }
+  if (!oldMarketPaused || !oldMarginPaused) {
+    throw new Error('Superseded engines must remain paused before recovery deployment');
+  }
+}
+
+const riskManager = await deploy('deployRiskManager', 'RiskManagerV2', [deployer, riskConfigDelay]);
+
+if (!sharedDeployment) {
+  await write('enableCvaAsset', assetRegistry, 'setAsset', [cvaAsset, true, cvaDecimals, referenceHash]);
+}
 const repoMarket = await deploy('deployRepoMarket', 'RepoMarketV2', [
   deployer,
   settlementToken,
@@ -566,19 +681,25 @@ const frontendTrustedManifestDraft = {
   }],
 };
 
-await write('scheduleRiskConfig', riskManager, 'scheduleConfig', [cvaAsset, riskConfig]);
+const scheduleRiskReceipt = await write('scheduleRiskConfig', riskManager, 'scheduleConfig', [cvaAsset, riskConfig]);
+if (hackathonZeroDelay) {
+  await write('applyRiskConfig', riskManager, 'applyConfig', [cvaAsset, riskConfig]);
+}
 await write('setMarketPauseGuardian', repoMarket, 'setPauseGuardian', [pauseGuardian]);
 await write('pauseMarketEntry', repoMarket, 'setEntryPaused', [true]);
 await write('setMarginPauseGuardian', marginEngine, 'setPauseGuardian', [pauseGuardian]);
 await write('pauseMarginEntry', marginEngine, 'setEntryPaused', [true]);
 
-for (const [key, contract] of [
-  ['transferRegistryOwnership', assetRegistry],
+const ownershipTransfers = [
+  ...(!sharedDeployment ? [
+    ['transferRegistryOwnership', assetRegistry],
+    ['transferOracleOwnership', valuationOracle],
+  ] : []),
   ['transferRiskManagerOwnership', riskManager],
-  ['transferOracleOwnership', valuationOracle],
   ['transferMarketOwnership', repoMarket],
   ['transferMarginOwnership', marginEngine],
-]) {
+];
+for (const [key, contract] of ownershipTransfers) {
   await write(key, contract, 'transferOwnership', [owner]);
 }
 
@@ -622,6 +743,18 @@ const [pendingRiskConfig, liveSignerSet] = await Promise.all([
 ]);
 const pendingRiskHash = pendingRiskConfig.configHash ?? pendingRiskConfig[0];
 const pendingRiskExecuteAfter = pendingRiskConfig.executeAfter ?? pendingRiskConfig[1];
+const scheduledRiskBlock = hackathonZeroDelay
+  ? await publicClient.getBlock({ blockNumber: scheduleRiskReceipt.blockNumber })
+  : null;
+const activeRiskConfig = await publicClient.readContract({
+  address: riskManager.address,
+  abi: riskManager.abi,
+  functionName: 'rawConfig',
+  args: [cvaAsset],
+});
+if (hackathonZeroDelay && !activeRiskConfig.enabled) {
+  throw new Error('Zero-delay UAT risk configuration was not applied atomically during deployment');
+}
 const signerSetVerified = liveSignerSet.every((signer, index) => (
   signer.toLowerCase() === oracleSigners[index].toLowerCase()
 ));
@@ -714,11 +847,13 @@ console.log(JSON.stringify({
   },
   riskActivation: {
     scheduled: true,
-    configHash: pendingRiskHash,
+    configHash: hackathonZeroDelay ? expectedRiskConfigHash : pendingRiskHash,
     scheduledTransaction: transactionRecords.scheduleRiskConfig.txHash,
-    executeAfter: pendingRiskExecuteAfter.toString(),
-    applied: false,
-    appliedTransaction: null,
+    executeAfter: hackathonZeroDelay
+      ? scheduledRiskBlock.timestamp.toString()
+      : pendingRiskExecuteAfter.toString(),
+    applied: hackathonZeroDelay,
+    appliedTransaction: transactionRecords.applyRiskConfig?.txHash ?? null,
   },
   oracleActivation: {
     signerSetVerified,
@@ -762,7 +897,9 @@ console.log(JSON.stringify({
     'Before ownership acceptance, have the current EOA owners sign the exact Cleanverse pool/factory messages; register both pools and record their approved RuleV2 evidence.',
     'Grant REGISTER_ROLE to the exact factory, then have its activation owner call registerCvaCustody for each exact vault/CVA and escrow/settlement-token pair.',
     'After those transactions confirm, transfer factory ownership to the reviewed final owner and have it accept; then have the pending owner accept registry, risk manager, oracle, market, and margin engine ownership.',
-    'Wait for the configured risk delay, then have the multisig apply the exact scheduled risk config.',
+    hackathonZeroDelay
+      ? 'Verify the risk configuration applied in the same guarded UAT deployment sequence; no delayed action remains.'
+      : 'Wait for the configured risk delay, then have the multisig apply the exact scheduled risk config.',
     'Submit a fresh 2-of-3 signed valuation and execute real deposit/withdraw/escrow claim smoke proofs.',
     'Only then set readiness true and unpause isolated entry; enable cross-margin last.',
     'After every activation proof passes, review frontendTrustedManifestDraft, change only its status to ACTIVE, and provide its compact JSON as VITE_TRUSTED_V2_MANIFEST_JSON at frontend build time.',

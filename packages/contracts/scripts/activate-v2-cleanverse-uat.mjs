@@ -24,11 +24,17 @@ const CHAIN = 'monad';
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const secretsDirectory = join(repositoryRoot, '.secrets');
 const credentialsPath = join(secretsDirectory, 'cleanverse-uat.json');
-const signaturesPath = join(secretsDirectory, 'v2-cleanverse-signatures.json');
-const journalPath = join(secretsDirectory, 'v2-cleanverse-activation.journal.jsonl');
-const deploymentPath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.json');
+const deploymentFilename = process.argv.find((argument) => argument.startsWith('--deployment='))
+  ?.slice('--deployment='.length) || 'monad-testnet-v2.json';
+if (!['monad-testnet-v2.json', 'monad-testnet-v2-hackathon.json'].includes(deploymentFilename)) {
+  throw new Error('Unsupported deployment manifest');
+}
+const deploymentStem = deploymentFilename.slice(0, -'.json'.length);
+const signaturesPath = join(secretsDirectory, `${deploymentStem}.cleanverse-signatures.json`);
+const journalPath = join(secretsDirectory, `${deploymentStem}.cleanverse-activation.journal.jsonl`);
+const deploymentPath = join(repositoryRoot, 'deployments', deploymentFilename);
 const rolesPath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.roles.json');
-const evidencePath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.cleanverse.json');
+const evidencePath = join(repositoryRoot, 'deployments', `${deploymentStem}.cleanverse.json`);
 const factoryArtifactPath = join(repositoryRoot, 'packages/contracts/artifacts-solc/ProtocolModuleFactoryV2.json');
 
 const execute = process.argv.includes('--execute');

@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const EXECUTION_CONFIRMATION = 'DEPLOY_RWCAR_V2_TO_MONAD_TESTNET_10143';
+const HACKATHON_EXECUTION_CONFIRMATION = 'REDEPLOY_RWCAR_V2_HACKATHON_UAT_ZERO_DELAY';
+const HACKATHON_ZERO_DELAY_CONFIRMATION = 'ENABLE_ZERO_DELAY_ONLY_FOR_MONAD_HACKATHON_UAT';
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const secretsDirectory = join(repositoryRoot, '.secrets');
 const wrappingKeyPath = join(secretsDirectory, 'v2-uat-roles.key');
@@ -14,11 +16,19 @@ const encryptedBundlePath = join(secretsDirectory, 'v2-uat-roles.enc.json');
 const publicRolesPath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.roles.json');
 const v1ManifestPath = join(repositoryRoot, 'deployments', 'monad-testnet.json');
 const deployScriptPath = join(repositoryRoot, 'packages/contracts/scripts/deploy-v2-uat.mjs');
-const journalPath = join(secretsDirectory, 'v2-deployment.journal.jsonl');
+const hackathonUat = process.argv.includes('--hackathon-uat');
+const journalPath = join(
+  secretsDirectory,
+  hackathonUat ? 'v2-hackathon-redeployment.journal.jsonl' : 'v2-deployment.journal.jsonl',
+);
+const sharedDeploymentPath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.json');
 
 const execute = process.argv.includes('--execute');
 if (execute && !process.argv.includes(`--confirm=${EXECUTION_CONFIRMATION}`)) {
   throw new Error(`Execution requires --confirm=${EXECUTION_CONFIRMATION}`);
+}
+if (execute && hackathonUat && !process.argv.includes(`--hackathon-confirm=${HACKATHON_EXECUTION_CONFIRMATION}`)) {
+  throw new Error(`Hackathon UAT execution requires --hackathon-confirm=${HACKATHON_EXECUTION_CONFIRMATION}`);
 }
 
 const revision = execFileSync('git', ['rev-parse', 'HEAD'], {
@@ -75,11 +85,17 @@ const childEnvironment = {
   V2_ALLOWED_DURATIONS: '300',
   V2_ALLOW_EOA_OWNER: 'true',
   V2_ALLOW_ROLE_OVERLAP: 'false',
+  ...(hackathonUat ? {
+    V2_REUSE_SHARED_DEPLOYMENT_PATH: sharedDeploymentPath,
+    V2_HACKATHON_UAT_ZERO_DELAY: 'true',
+    V2_RISK_CONFIG_DELAY_SECONDS: '0',
+  } : {}),
 };
 if (execute) {
   childEnvironment.V2_UAT_DEPLOYER_PRIVATE_KEY = privateKeys.deployer;
   childEnvironment.V2_DEPLOY_CONFIRM = EXECUTION_CONFIRMATION;
   childEnvironment.V2_KEY_ROTATION_ATTESTATION = 'FRESH_UAT_KEYS_NOT_PREVIOUSLY_SHARED';
+  if (hackathonUat) childEnvironment.V2_HACKATHON_UAT_CONFIRM = HACKATHON_ZERO_DELAY_CONFIRMATION;
   if (existsSync(journalPath)) childEnvironment.V2_RESUME_JOURNAL_PATH = journalPath;
 }
 
@@ -107,13 +123,16 @@ const manifest = JSON.parse(stdout);
 const outputPath = join(
   repositoryRoot,
   'deployments',
-  execute ? 'monad-testnet-v2.json' : 'monad-testnet-v2.plan.json',
+  execute
+    ? hackathonUat ? 'monad-testnet-v2-hackathon.json' : 'monad-testnet-v2.json'
+    : hackathonUat ? 'monad-testnet-v2-hackathon.plan.json' : 'monad-testnet-v2.plan.json',
 );
 writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, execute
   ? { flag: 'wx', mode: 0o644 }
   : { mode: 0o644 });
 console.log(JSON.stringify({
   mode: execute ? 'execute' : 'plan',
+  profile: hackathonUat ? 'MONAD_HACKATHON_UAT_ZERO_DELAY' : 'STANDARD_UAT',
   sourceRevision: revision,
   status: manifest.status,
   outputPath,

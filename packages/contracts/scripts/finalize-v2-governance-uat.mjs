@@ -21,10 +21,16 @@ const CONFIRMATION = 'FINALIZE_RWCAR_V2_UAT_GOVERNANCE';
 const CHAIN_ID = 10_143;
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const secretsDirectory = join(repositoryRoot, '.secrets');
-const deploymentPath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.json');
-const cleanverseEvidencePath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.cleanverse.json');
-const evidencePath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.governance.json');
-const journalPath = join(secretsDirectory, 'v2-governance-finalization.journal.jsonl');
+const deploymentFilename = process.argv.find((argument) => argument.startsWith('--deployment='))
+  ?.slice('--deployment='.length) || 'monad-testnet-v2.json';
+if (!['monad-testnet-v2.json', 'monad-testnet-v2-hackathon.json'].includes(deploymentFilename)) {
+  throw new Error('Unsupported deployment manifest');
+}
+const deploymentStem = deploymentFilename.slice(0, -'.json'.length);
+const deploymentPath = join(repositoryRoot, 'deployments', deploymentFilename);
+const cleanverseEvidencePath = join(repositoryRoot, 'deployments', `${deploymentStem}.cleanverse.json`);
+const evidencePath = join(repositoryRoot, 'deployments', `${deploymentStem}.governance.json`);
+const journalPath = join(secretsDirectory, `${deploymentStem}.governance-finalization.journal.jsonl`);
 const artifactsDirectory = join(repositoryRoot, 'packages', 'contracts', 'artifacts-solc');
 const execute = process.argv.includes('--execute');
 

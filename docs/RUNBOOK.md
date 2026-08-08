@@ -1,6 +1,6 @@
 # Operations runbook
 
-This runbook separates deployment from activation. A successful deployment is **not** a live market: entry remains paused, every custody-readiness flag remains false, the delayed risk configuration remains pending, and ownership remains pending until the governance multisig accepts it.
+This runbook separates deployment from activation. A successful deployment is **not** a live market: entry remains paused, every custody-readiness flag remains false, and ownership remains pending until governance accepts it. The standard profile also leaves delayed risk configuration pending; the explicitly bounded Monad hackathon UAT recovery profile below applies its reviewed configuration immediately while keeping entry paused.
 
 ## Local and CI verification
 
@@ -78,6 +78,20 @@ The script verifies chain ID 10143, code at the CVA/settlement/validator address
 It does **not** call Cleanverse, apply risk, publish a valuation, assert custody readiness, unpause entry, enable the API margin flag, or accept ownership for the multisig.
 
 If execution stops partway, do not blindly rerun it. Preserve every submitted transaction line, inspect receipts and deployed bytecode, update the partial manifest, and decide whether to resume manually or abandon the deployment with entry paused.
+
+### Monad hackathon UAT recovery profile
+
+The bounded hackathon UAT profile exists only to replace an already-paused engine layer whose standard risk delay extends beyond the official demo window. It reuses the reviewed asset registry, authorized module factory, valuation oracle, CVA, settlement A-Token, validator, and separated roles. It deploys a new `RiskManagerV2` with `configDelay = 0`, applies the exact reviewed configuration immediately, then deploys new isolated-repo and margin engines. The superseded engines must be paused and are never reactivated.
+
+Generate the read-only plan with:
+
+```sh
+npm run deploy:uat:v2:hackathon -w @rwcar/contracts
+```
+
+Execution additionally requires both standard deployment confirmation and `--hackathon-confirm=REDEPLOY_RWCAR_V2_HACKATHON_UAT_ZERO_DELAY`. The runner writes `deployments/monad-testnet-v2-hackathon.json` and a separate ignored resume journal. The zero-delay path cannot run without an in-repository shared deployment manifest and an exact UAT-only confirmation. Production and standard UAT retain the minimum one-hour guard and the normal 24-hour default.
+
+Cleanverse activation and governance finalization target this manifest with `--deployment=monad-testnet-v2-hackathon.json`; their journals and public evidence remain separate from the superseded deployment.
 
 ## Pending governance handoff and delayed configuration
 
