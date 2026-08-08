@@ -143,6 +143,21 @@ npm run activate:cleanverse:v2 -w @rwcar/contracts -- \
 
 The runner verifies live owners and factory bindings, recovers each EIP-191 signer, queries pool/role/registration state before mutation, waits for three confirmations, and can safely resume from authoritative state. It writes only public transaction evidence to `deployments/monad-testnet-v2.cleanverse.json`; signatures, credentials, and the activation journal stay under `.secrets/`. It never changes protocol readiness or unpauses entry.
 
+The settlement-fee treasury must also have an active A-Pass because it receives the settlement A-Token. Prepare its deterministic UAT onboarding without making a request:
+
+```sh
+npm run onboard:fee-treasury:v2 -w @rwcar/contracts
+```
+
+For the hackathon UAT environment only, execute the synthetic-KYC onboarding with the explicit interlock:
+
+```sh
+npm run onboard:fee-treasury:v2 -w @rwcar/contracts -- \
+  --execute --confirm=ONBOARD_RWCAR_V2_FEE_TREASURY_CVI_UAT
+```
+
+The command is idempotent, refuses a dirty worktree, never logs the decrypted identity request, requires status `1`, tier `30` or higher, a future expiry, and `/verify_apass` code `4` for the exact settlement A-Token. It records only public UAT evidence. This synthetic identity is not production KYC and must be replaced by institution-managed onboarding before any production release.
+
 The auctions, factory, oracle, and risk manager do not custody tokens. The factory only performs constrained registrations. For each registration preserve response code, chain transaction hash, address, token, policy-pool address, rules, timestamp, signature-message digest, and operator approval in the manifest. An ordinary wallet A-Pass does not prove contract-custody eligibility.
 
 ## Oracle activation
