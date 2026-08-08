@@ -12,6 +12,7 @@
     "deploy:uat:v2:secure": "npm run build && node scripts/run-v2-uat-deployment.mjs",
     "activate:cleanverse:v2": "node scripts/activate-v2-cleanverse-uat.mjs",
     "onboard:fee-treasury:v2": "node scripts/onboard-v2-fee-treasury-uat.mjs",
+    "fund:roles:v2": "node scripts/fund-v2-uat-roles.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "hardhat clean"
   },

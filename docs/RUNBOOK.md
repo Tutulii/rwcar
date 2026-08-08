@@ -94,6 +94,16 @@ After the two policy-pool registrations and all four custody registrations confi
 
 Record all transfer/acceptance transactions. Confirm `owner()` and `pendingOwner()` on each contract. The one-time deployer and factory activation EOA must have no remaining owner, guardian, registrar-control, signer, keeper, treasury, or service role.
 
+Before ownership acceptance, fund only the operational addresses that must submit transactions. The UAT helper tops the pending owner up to `1 MON`, and the pause guardian and fee treasury to `0.1 MON` each, while preserving at least `1 MON` in the factory activation wallet for custody registration and its ownership handoff:
+
+```sh
+npm run fund:roles:v2 -w @rwcar/contracts
+npm run fund:roles:v2 -w @rwcar/contracts -- \
+  --execute --confirm=FUND_RWCAR_V2_UAT_OPERATIONAL_ROLES
+```
+
+The helper transfers only balance shortfalls, refuses overlapping roles, waits for three confirmations, and records public transaction evidence. Never reuse its UAT amounts as a production treasury policy.
+
 After `RiskManagerV2.configDelay()` has elapsed, compare the complete pending tuple to the approved manifest and have the multisig call `applyConfig(CVA, exactConfig)`. A hash mismatch or early call must revert. Record the `ConfigApplied` hash and decoded tuple.
 
 ## Cleanverse custody authorization
