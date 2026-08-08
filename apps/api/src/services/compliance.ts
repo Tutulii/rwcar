@@ -47,12 +47,11 @@ export class ComplianceService {
       this.cleanverse.queryApass(MONAD_TESTNET.cleanverseChain, wallet),
       this.cleanverse.verifyApass(MONAD_TESTNET.cleanverseChain, asset, wallet),
       requestId
-        ? this.cleanverse.queryAssetApplication(requestId)
+        ? this.issuedAssetApplication(requestId, asset)
         : this.supportedSettlementApplication(asset),
     ]);
     const applicationBound = application.chain === MONAD_TESTNET.cleanverseChain
-      && application.tokenAddress === normalizedAsset
-      && application.pauseKnown;
+      && application.tokenAddress === normalizedAsset;
     const poolEligible = pool
       ? await this.chain.poolEligible(CONTRACTS.validator, pool, wallet)
       : null;
@@ -69,7 +68,7 @@ export class ComplianceService {
       countries: apass.countries,
       verificationCode: verification.code,
       assetIssued: application.issued && applicationBound,
-      assetPaused: application.paused || !applicationBound,
+      assetPaused: application.paused || !application.pauseKnown || !applicationBound,
       poolEligible,
       checkedAt: new Date().toISOString(),
     };
@@ -87,6 +86,24 @@ export class ComplianceService {
     });
     this.cache.set(key, { expires: Date.now() + this.config.COMPLIANCE_CACHE_SECONDS * 1000, value });
     return value;
+  }
+
+  private async issuedAssetApplication(requestId: string, asset: Address) {
+    const [application, policyState] = await Promise.all([
+      this.cleanverse.queryAssetApplication(requestId),
+      this.chain.tokenPolicyState(asset).catch(() => null),
+    ]);
+    return {
+      ...application,
+      paused: policyState?.paused ?? true,
+      pauseKnown: policyState !== null,
+      raw: {
+        application: application.raw,
+        verificationSource: 'query_apply_status+policy.isPaused',
+        policyAddress: policyState?.policy ?? null,
+        policyPaused: policyState?.paused ?? null,
+      },
+    };
   }
 
   private async supportedSettlementApplication(asset: Address) {

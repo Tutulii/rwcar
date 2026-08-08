@@ -105,3 +105,59 @@ describe('Compliance settlement-token proof', () => {
     assert.equal(result.assetPaused, true);
   });
 });
+
+describe('Compliance issued-asset proof', () => {
+  it('uses the live token policy when apply status omits pause state', async () => {
+    const asset = '0x0000000000000000000000000000000000000003' as Address;
+    const { db, rows } = databaseStub();
+    const cleanverse = apassClient({
+      queryAssetApplication: async () => ({
+        issued: true,
+        paused: true,
+        pauseKnown: false,
+        status: 'ISSUED',
+        chain: MONAD_TESTNET.cleanverseChain,
+        tokenAddress: asset.toLowerCase(),
+        raw: { applyStatus: 'ISSUED', chain: 'monad', atokenAddress: asset },
+      }),
+    } as Partial<CleanverseClient>);
+    const chain = {
+      tokenPolicyState: async () => ({ policy: pool, paused: false }),
+      poolEligible: async () => true,
+    } as unknown as ChainService;
+
+    const result = await new ComplianceService(config, db, cleanverse, chain)
+      .verify(wallet, asset, 'request-1', randomUUID(), pool);
+
+    assert.equal(result.assetIssued, true);
+    assert.equal(result.assetPaused, false);
+    assert.equal(result.poolEligible, true);
+    assert.equal(rows.length, 1);
+  });
+
+  it('fails closed when the live token policy cannot be read', async () => {
+    const asset = '0x0000000000000000000000000000000000000003' as Address;
+    const { db } = databaseStub();
+    const cleanverse = apassClient({
+      queryAssetApplication: async () => ({
+        issued: true,
+        paused: true,
+        pauseKnown: false,
+        status: 'ISSUED',
+        chain: MONAD_TESTNET.cleanverseChain,
+        tokenAddress: asset.toLowerCase(),
+        raw: { applyStatus: 'ISSUED', chain: 'monad', atokenAddress: asset },
+      }),
+    } as Partial<CleanverseClient>);
+    const chain = {
+      tokenPolicyState: async () => { throw new Error('RPC unavailable'); },
+      poolEligible: async () => true,
+    } as unknown as ChainService;
+
+    const result = await new ComplianceService(config, db, cleanverse, chain)
+      .verify(wallet, asset, 'request-1', randomUUID(), pool);
+
+    assert.equal(result.assetIssued, true);
+    assert.equal(result.assetPaused, true);
+  });
+});
