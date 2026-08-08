@@ -40,6 +40,7 @@ describe('Railway deployment packaging', () => {
       assert.match(dockerfile, new RegExp(`ARG ${key}`));
       assert.match(dockerfile, new RegExp(`ENV ${key}=`));
     }
+    assert.match(dockerfile, /COPY packages\/shared packages\/shared/);
     assert.match(dockerfile, /scripts\/serve-static\.mjs/);
   });
 
