@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
+import { createDecipheriv } from 'node:crypto';
 import { once } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -104,6 +105,19 @@ if (service === 'api') {
   command = 'npm';
   args = ['run', 'dev:api'];
 } else if (service === 'indexer') {
+  const encryptedBundle = JSON.parse(readFileSync(join(repositoryRoot, '.secrets', 'v2-uat-roles.enc.json'), 'utf8'));
+  const wrappingKey = Buffer.from(
+    readFileSync(join(repositoryRoot, '.secrets', 'v2-uat-roles.key'), 'utf8').trim(),
+    'base64',
+  );
+  const decipher = createDecipheriv('aes-256-gcm', wrappingKey, Buffer.from(encryptedBundle.iv, 'base64'));
+  decipher.setAuthTag(Buffer.from(encryptedBundle.authTag, 'base64'));
+  const roleBundle = JSON.parse(Buffer.concat([
+    decipher.update(Buffer.from(encryptedBundle.ciphertext, 'base64')),
+    decipher.final(),
+  ]).toString('utf8'));
+  if (!roleBundle.privateKeys.keeper) throw new Error('The permissionless UAT keeper has not been created');
+  common.KEEPER_PRIVATE_KEY = roleBundle.privateKeys.keeper;
   command = 'npm';
   args = ['run', 'dev:indexer'];
 } else {

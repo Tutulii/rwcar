@@ -17,8 +17,14 @@ const CONFIRMATION = 'FUND_RWCAR_V2_UAT_OPERATIONAL_ROLES';
 const CHAIN_ID = 10_143;
 const SOURCE_RESERVE = parseEther('1');
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
-const deploymentPath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.json');
-const evidencePath = join(repositoryRoot, 'deployments', 'monad-testnet-v2.role-funding.json');
+const deploymentFilename = process.argv.find((argument) => argument.startsWith('--deployment='))
+  ?.slice('--deployment='.length) || 'monad-testnet-v2.json';
+if (!['monad-testnet-v2.json', 'monad-testnet-v2-hackathon.json'].includes(deploymentFilename)) {
+  throw new Error('Unsupported deployment manifest');
+}
+const deploymentStem = deploymentFilename.slice(0, -'.json'.length);
+const deploymentPath = join(repositoryRoot, 'deployments', deploymentFilename);
+const evidencePath = join(repositoryRoot, 'deployments', `${deploymentStem}.role-funding.json`);
 const secretsDirectory = join(repositoryRoot, '.secrets');
 const execute = process.argv.includes('--execute');
 
@@ -48,6 +54,9 @@ const targets = [
   { key: 'pendingOwner', address: deployment.roles.pendingOwner, minimum: parseEther('1') },
   { key: 'pauseGuardian', address: deployment.roles.pauseGuardian, minimum: parseEther('0.1') },
   { key: 'feeTreasury', address: deployment.roles.feeTreasury, minimum: parseEther('0.1') },
+  ...(deployment.roles.keeper
+    ? [{ key: 'keeper', address: deployment.roles.keeper, minimum: parseEther('0.25') }]
+    : []),
 ];
 if (new Set(targets.map(({ address }) => address.toLowerCase())).size !== targets.length) {
   throw new Error('Operational funding targets must be distinct');
