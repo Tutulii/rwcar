@@ -1,10 +1,25 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { marginEngineV2Abi } from '@rwcar/shared';
+import { marginEngineV2Abi, MarginActionV2Schema } from '@rwcar/shared';
 import { decodeFunctionData, encodeFunctionData } from 'viem';
 import { normalizeMarginAction, settlementClaimPolicyPool } from '../src/services/v2-preflight.js';
 
 describe('V2 margin adapter', () => {
+  it('accepts a public funding mandate encoded with a null permitted lender', () => {
+    const input = MarginActionV2Schema.parse({
+      actor: '0x0000000000000000000000000000000000000001',
+      action: 'OPEN_ACCOUNT',
+      amount: '5000',
+      fundingTarget: '3000',
+      minimumFunding: '3000',
+      maxAnnualRateBps: 800,
+      durationSeconds: 300,
+      fundingExpiry: 1_786_300_000,
+      permittedLender: null,
+    });
+    assert.equal(input.permittedLender, null);
+  });
+
   it('normalizes UI aliases to the locked engine actions', () => {
     assert.equal(normalizeMarginAction('DEPOSIT_COLLATERAL'), 'DEPOSIT');
     assert.equal(normalizeMarginAction('WITHDRAW_AVAILABLE'), 'WITHDRAW');

@@ -99,7 +99,7 @@ export const MarginActionV2Schema = z.object({
   minimumFunding: UintStringSchema.optional(),
   maxAnnualRateBps: z.number().int().min(0).max(100_000).optional(),
   fundingExpiry: z.number().int().positive().optional(),
-  permittedLender: AddressSchema.optional(),
+  permittedLender: AddressSchema.nullable().optional(),
   annualRateBps: z.number().int().min(0).max(100_000).optional(),
   durationSeconds: z.number().int().positive().optional(),
   maxFee: UintStringSchema.optional(),
