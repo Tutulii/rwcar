@@ -97,8 +97,14 @@ const promptSecret = async () => {
 let command;
 let args;
 if (service === 'api') {
-  common.PRIVY_APP_ID = process.env.PRIVY_APP_ID?.trim() || rootEnv.VITE_PRIVY_APP_ID;
-  common.PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET?.trim() || await promptSecret();
+  const privySecretPath = join(repositoryRoot, '.secrets', 'privy-uat.json');
+  const privySecret = existsSync(privySecretPath) ? JSON.parse(readFileSync(privySecretPath, 'utf8')) : {};
+  common.PRIVY_APP_ID = process.env.PRIVY_APP_ID?.trim()
+    || privySecret.appId
+    || rootEnv.VITE_PRIVY_APP_ID;
+  common.PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET?.trim()
+    || privySecret.appSecret
+    || await promptSecret();
   common.API_HOST = '127.0.0.1';
   common.API_PORT = '3001';
   common.CORS_ORIGINS = 'http://127.0.0.1:5173,http://localhost:5173';
