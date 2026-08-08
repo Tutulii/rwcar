@@ -1,0 +1,30 @@
+{
+  "sourceRevision": "ebed9696f0a5bd0d0057f42cee30ca6a6160c899",
+  "status": "ACTIVE_UAT_CVI",
+  "chain": "monad",
+  "chainId": 10143,
+  "address": "0x505dbD2BAb448DDBF09DfFaB6A932565bab9aDFa",
+  "customerId": "RWCARFEE20260808MONAD01",
+  "expirationTime": 1817769599,
+  "settlementToken": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+  "syntheticKyc": true,
+  "note": "Synthetic UAT identity data authorized for hackathon integration; not production KYC.",
+  "verifiedAt": "2026-08-08T01:25:33.989Z",
+  "apass": {
+    "cvRecordId": "1317",
+    "tier": 50,
+    "subTier": 0,
+    "status": 1,
+    "group": "",
+    "subGroup": "",
+    "countries": [
+      "SG"
+    ],
+    "expirationTime": 1817769599
+  },
+  "settlementATokenVerificationCode": 4,
+  "generation": {
+    "txHash": "0x228a926e18d6d0c75c21405136176889f3305e5a5b63af1f4942fe47bb47ef67",
+    "blockNumber": "51821952"
+  }
+}

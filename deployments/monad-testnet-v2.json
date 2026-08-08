@@ -512,6 +512,14 @@
       "asset": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
       "requestId": null,
       "transactionHash": "0xeea83d7de9e30df0255afc671f51304f9b94a65b30f62683cbd60d536f361701"
+    },
+    "feeTreasuryCvi": {
+      "active": true,
+      "address": "0x505dbD2BAb448DDBF09DfFaB6A932565bab9aDFa",
+      "tier": 50,
+      "expirationTime": 1817769599,
+      "settlementATokenVerificationCode": 4,
+      "transactionHash": "0x228a926e18d6d0c75c21405136176889f3305e5a5b63af1f4942fe47bb47ef67"
     }
   },
   "smokeProofs": {
