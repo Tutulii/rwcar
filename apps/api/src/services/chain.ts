@@ -23,6 +23,11 @@ const validatorAbi = [{
   outputs: [{ name: '', type: 'bool' }],
 }] as const;
 
+// Multicall3 is deployed at the canonical address on Monad Testnet. Configuring
+// it explicitly lets viem aggregate the metadata reads used by /v2/config
+// instead of bursting dozens of eth_call requests into the public RPC.
+const monadMulticall3 = '0xcA11bde05977b3631167028862bE2a173976CA11' as const;
+
 const marketReadAbi = [{
   type: 'function',
   name: 'feeTreasury',
@@ -266,8 +271,13 @@ export function createChainService(config: ApiConfig): ChainService {
     name: MONAD_TESTNET.name,
     nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
     rpcUrls: { default: { http: [config.MONAD_RPC_URL] } },
+    contracts: { multicall3: { address: monadMulticall3 } },
   });
-  const client = createPublicClient({ chain, transport: http(config.MONAD_RPC_URL, { timeout: 10_000, retryCount: 2 }) });
+  const client = createPublicClient({
+    chain,
+    batch: { multicall: { wait: 5 } },
+    transport: http(config.MONAD_RPC_URL, { timeout: 10_000, retryCount: 2 }),
+  });
   const readFreshPrice = async (oracle: Address, asset: Address, settlementToken: Address, maxAge: bigint) => {
     const [priceE18, observedAt, digest] = await client.readContract({
       address: oracle, abi: valuationOracleReadAbi, functionName: 'freshPrice', args: [asset, settlementToken, maxAge],
