@@ -1,0 +1,107 @@
+{
+  "sourceRevision": "07ed23f0e8e8b632b7fc8ba1e39699b46306a213",
+  "status": "GOVERNANCE_FINALIZED_ENTRY_PAUSED",
+  "chainId": 10143,
+  "chainBlock": "51826185",
+  "chainTimestamp": 1786153621,
+  "finalOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+  "ownership": {
+    "assetRegistry": {
+      "address": "0x0424051a55de388e7af9c71f7cf7c3e61f02f879",
+      "owner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+      "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e"
+    },
+    "riskManager": {
+      "address": "0xd69bafc761d0edd58b2f27628d38e0fbda3955a4",
+      "owner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+      "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e"
+    },
+    "valuationOracle": {
+      "address": "0xdec0a543253503b5d3dd8883102e4b95a3c5bec0",
+      "owner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+      "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e"
+    },
+    "repoMarket": {
+      "address": "0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379",
+      "owner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+      "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e"
+    },
+    "marginEngine": {
+      "address": "0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2",
+      "owner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+      "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e"
+    },
+    "moduleFactory": {
+      "address": "0x56ad2cde82d67106ec6a06b99dde2e25a1ada572",
+      "owner": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+      "pendingOwner": "0x0000000000000000000000000000000000000000"
+    }
+  },
+  "poolRegistration": {
+    "repoMarket": true,
+    "marginEngine": true
+  },
+  "factoryRegistrarRole": true,
+  "custodyRegistration": {
+    "marketVault": {
+      "registrationKey": "0x5917d0fc0067053486bd83232d05f4c4d0e261246b1ab08144be69d2742d49a6",
+      "registered": true
+    },
+    "marketSettlementEscrow": {
+      "registrationKey": "0x93a55533a1f318777a26a3af410f0cf895494b578ebeeca1b46d58ddd8cfe38c",
+      "registered": true
+    },
+    "marginVault": {
+      "registrationKey": "0x7687774d8f3f44d72d8cc5823c7f2a0d2acecfc58307a118dec63c95f2d211a9",
+      "registered": true
+    },
+    "marginSettlementEscrow": {
+      "registrationKey": "0xcbfc22159b41b34c265d44e8a2f874a44985c617fbe409a55c9d3808601f4206",
+      "registered": true
+    }
+  },
+  "safety": {
+    "marketEntryPaused": true,
+    "marketReady": false,
+    "marginEntryPaused": true,
+    "marginCustodyReady": false
+  },
+  "risk": {
+    "expectedRiskHash": "0x6f8516a4e66d796e2a1e71346406e8f4d95be5bcc917936ea5a97458111ca62f",
+    "pendingRiskHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "executeAfter": 0,
+    "applied": true
+  },
+  "blockers": [],
+  "completedAt": "2026-08-08T01:47:41.675Z",
+  "transactions": {
+    "transferModuleFactoryOwnership": {
+      "txHash": "0xa731ec7a9bd290d50f0cce14c01c7c22bff3e54a0a80ea354eb42c93dba808ea",
+      "blockNumber": "51826190"
+    },
+    "acceptAssetRegistryOwnership": {
+      "txHash": "0x8b2b93c307bac2fbf0d7eeef562344d6bc2f4cebc91d284fd09b924f51e9cde5",
+      "blockNumber": "51826209"
+    },
+    "acceptRiskManagerOwnership": {
+      "txHash": "0x7ccc907fda776edb9ad3840cdc9ad0e5396992279a88a59e4e3969d14396d343",
+      "blockNumber": "51826227"
+    },
+    "acceptValuationOracleOwnership": {
+      "txHash": "0x5bd7ad155d9433d31891029e1d976556644587e0cfd7373274ad79873ad4b9a8",
+      "blockNumber": "51826245"
+    },
+    "acceptRepoMarketOwnership": {
+      "txHash": "0x9d48d63c56eb05176f2038877e77fabbb2fbc745009d427fe67c5072d2b8f9ef",
+      "blockNumber": "51826263"
+    },
+    "acceptMarginEngineOwnership": {
+      "txHash": "0xf7cc538076abc568793ea2d8f234b2e63998bf76ed973f20564676f2f05223f7",
+      "blockNumber": "51826281"
+    },
+    "acceptModuleFactoryOwnership": {
+      "txHash": "0x409caf4165ca53a9978d642103a1ee7c61ddbf0d8dc8b4dfdb51bb3c72814ef2",
+      "blockNumber": "51826299"
+    }
+  }
+}

@@ -222,6 +222,34 @@
     "transferMarginOwnership": {
       "txHash": "0xda94ace9b4f97bd9438db203c542179d0c85ed0c6e197cd2ef327362441e784a",
       "blockNumber": "51825733"
+    },
+    "transferModuleFactoryOwnership": {
+      "txHash": "0xa731ec7a9bd290d50f0cce14c01c7c22bff3e54a0a80ea354eb42c93dba808ea",
+      "blockNumber": "51826190"
+    },
+    "acceptAssetRegistryOwnership": {
+      "txHash": "0x8b2b93c307bac2fbf0d7eeef562344d6bc2f4cebc91d284fd09b924f51e9cde5",
+      "blockNumber": "51826209"
+    },
+    "acceptRiskManagerOwnership": {
+      "txHash": "0x7ccc907fda776edb9ad3840cdc9ad0e5396992279a88a59e4e3969d14396d343",
+      "blockNumber": "51826227"
+    },
+    "acceptValuationOracleOwnership": {
+      "txHash": "0x5bd7ad155d9433d31891029e1d976556644587e0cfd7373274ad79873ad4b9a8",
+      "blockNumber": "51826245"
+    },
+    "acceptRepoMarketOwnership": {
+      "txHash": "0x9d48d63c56eb05176f2038877e77fabbb2fbc745009d427fe67c5072d2b8f9ef",
+      "blockNumber": "51826263"
+    },
+    "acceptMarginEngineOwnership": {
+      "txHash": "0xf7cc538076abc568793ea2d8f234b2e63998bf76ed973f20564676f2f05223f7",
+      "blockNumber": "51826281"
+    },
+    "acceptModuleFactoryOwnership": {
+      "txHash": "0x409caf4165ca53a9978d642103a1ee7c61ddbf0d8dc8b4dfdb51bb3c72814ef2",
+      "blockNumber": "51826299"
     }
   },
   "deployedCode": {
@@ -383,39 +411,68 @@
   "ownership": {
     "contracts": {
       "assetRegistry": {
-        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
-        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
-        "accepted": false
+        "currentOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "pendingOwner": "0x0000000000000000000000000000000000000000",
+        "accepted": true
       },
       "riskManager": {
-        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
-        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
-        "accepted": false
+        "currentOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "pendingOwner": "0x0000000000000000000000000000000000000000",
+        "accepted": true
       },
       "valuationOracle": {
-        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
-        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
-        "accepted": false
+        "currentOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "pendingOwner": "0x0000000000000000000000000000000000000000",
+        "accepted": true
       },
       "repoMarket": {
-        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
-        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
-        "accepted": false
+        "currentOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "pendingOwner": "0x0000000000000000000000000000000000000000",
+        "accepted": true
       },
       "marginEngine": {
-        "currentOwner": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
-        "pendingOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
-        "accepted": false
+        "currentOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+        "pendingOwner": "0x0000000000000000000000000000000000000000",
+        "accepted": true
       },
       "moduleFactory": {
-        "currentOwner": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+        "currentOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
         "pendingOwner": "0x0000000000000000000000000000000000000000",
         "finalOwner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
-        "activationComplete": false,
-        "accepted": false
+        "activationComplete": true,
+        "accepted": true
       }
     },
-    "acceptanceTransactions": {}
+    "acceptanceTransactions": {
+      "transferModuleFactoryOwnership": {
+        "txHash": "0xa731ec7a9bd290d50f0cce14c01c7c22bff3e54a0a80ea354eb42c93dba808ea",
+        "blockNumber": "51826190"
+      },
+      "acceptAssetRegistryOwnership": {
+        "txHash": "0x8b2b93c307bac2fbf0d7eeef562344d6bc2f4cebc91d284fd09b924f51e9cde5",
+        "blockNumber": "51826209"
+      },
+      "acceptRiskManagerOwnership": {
+        "txHash": "0x7ccc907fda776edb9ad3840cdc9ad0e5396992279a88a59e4e3969d14396d343",
+        "blockNumber": "51826227"
+      },
+      "acceptValuationOracleOwnership": {
+        "txHash": "0x5bd7ad155d9433d31891029e1d976556644587e0cfd7373274ad79873ad4b9a8",
+        "blockNumber": "51826245"
+      },
+      "acceptRepoMarketOwnership": {
+        "txHash": "0x9d48d63c56eb05176f2038877e77fabbb2fbc745009d427fe67c5072d2b8f9ef",
+        "blockNumber": "51826263"
+      },
+      "acceptMarginEngineOwnership": {
+        "txHash": "0xf7cc538076abc568793ea2d8f234b2e63998bf76ed973f20564676f2f05223f7",
+        "blockNumber": "51826281"
+      },
+      "acceptModuleFactoryOwnership": {
+        "txHash": "0x409caf4165ca53a9978d642103a1ee7c61ddbf0d8dc8b4dfdb51bb3c72814ef2",
+        "blockNumber": "51826299"
+      }
+    }
   },
   "riskActivation": {
     "scheduled": true,
