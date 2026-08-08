@@ -144,29 +144,49 @@ export class ComplianceService {
         this.verify(edge.from as Address, edge.token as Address, requestId, correlationId, edge.policyPool as Address),
         this.verify(edge.to as Address, edge.token as Address, requestId, correlationId, edge.policyPool as Address),
       ]);
+      const [fromRegisteredCustody, toRegisteredCustody] = await Promise.all([
+        this.registeredCustody(edge, fromCompliance),
+        this.registeredCustody(edge, toCompliance),
+      ]);
+      const fromBlockingReasons = decisionReasons(fromCompliance, fromRegisteredCustody);
+      const toBlockingReasons = decisionReasons(toCompliance, toRegisteredCustody);
       const blockingReasons = [...new Set([
-        ...decisionReasons(fromCompliance),
-        ...decisionReasons(toCompliance),
+        ...fromBlockingReasons,
+        ...toBlockingReasons,
       ])];
       const eligible = blockingReasons.length === 0;
       checks.push({ edge, fromCompliance, toCompliance, eligible, blockingReasons });
 
       await this.db.insert(v2ComplianceDecisions).values([
-        decisionRow(edge, fromCompliance, correlationId, context, 'FROM', eligible),
-        decisionRow(edge, toCompliance, correlationId, context, 'TO', eligible),
+        decisionRow(edge, fromCompliance, correlationId, context, 'FROM', fromBlockingReasons, fromRegisteredCustody),
+        decisionRow(edge, toCompliance, correlationId, context, 'TO', toBlockingReasons, toRegisteredCustody),
       ]);
     }
     return checks;
   }
+
+  private async registeredCustody(edge: TransferEdge, result: ComplianceResult) {
+    const factory = this.config.PROTOCOL_MODULE_FACTORY_V2_ADDRESS as Address | undefined;
+    if (!factory || result.poolEligible !== false) return false;
+    return this.chain.factoryCustodyRegistered(
+      factory,
+      edge.policyPool as Address,
+      edge.token as Address,
+      result.wallet as Address,
+    ).catch(() => false);
+  }
 }
 
-function decisionReasons(result: ComplianceResult): TransferGraphCheck['blockingReasons'] {
+function decisionReasons(
+  result: ComplianceResult,
+  registeredCustody = false,
+): TransferGraphCheck['blockingReasons'] {
   const reasons: TransferGraphCheck['blockingReasons'] = [];
   if (!result.cviActive) reasons.push(result.verificationCode === 2 ? 'CVI_MISSING' : 'CVI_INACTIVE');
-  if (result.verificationCode !== 4 || result.poolEligible === false) reasons.push('CVI_INELIGIBLE');
+  if (result.verificationCode !== 4 || (!registeredCustody && result.poolEligible === false)) reasons.push('CVI_INELIGIBLE');
   if (!result.assetIssued) reasons.push('CVA_NOT_ISSUED');
   if (result.assetPaused) reasons.push('CVA_PAUSED');
-  if (result.poolEligible === null) reasons.push('COMPLIANCE_UNAVAILABLE');
+  if (!registeredCustody && result.poolEligible === null) reasons.push('COMPLIANCE_UNAVAILABLE');
   return reasons;
 }
 
@@ -176,7 +196,8 @@ function decisionRow(
   correlationId: CorrelationId,
   context: { action: string; resourceType: string; resourceId?: string },
   role: 'FROM' | 'TO',
-  edgeEligible: boolean,
+  blockingReasons: TransferGraphCheck['blockingReasons'],
+  registeredCustody: boolean,
 ) {
   return {
     correlationId,
@@ -191,7 +212,7 @@ function decisionRow(
     transferAmount: edge.amount,
     resourceType: context.resourceType,
     resourceId: context.resourceId,
-    decision: edgeEligible ? 'ALLOWED' : 'DENIED',
+    decision: blockingReasons.length === 0 ? 'ALLOWED' : 'DENIED',
     verificationCode: result.verificationCode,
     cviActive: result.cviActive,
     assetIssued: result.assetIssued,
@@ -205,7 +226,13 @@ function decisionRow(
       countries: result.countries,
       apassStatus: result.apassStatus,
       apassExpiresAt: result.apassExpiresAt,
+      registeredCustody,
     },
-    rawResult: { verificationCode: result.verificationCode, checkedAt: result.checkedAt },
+    rawResult: {
+      verificationCode: result.verificationCode,
+      checkedAt: result.checkedAt,
+      registeredCustody,
+      blockingReasons,
+    },
   };
 }
