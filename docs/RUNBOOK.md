@@ -118,6 +118,31 @@ Activation sequence:
 5. For the four exact `(pool, A-Token, custody)` bindings, call `/internal/v2/cleanverse/custody/calldata`. It verifies the live factory/validator/module binding and simulates `registerCvaCustody`; the connected factory owner reviews, signs, and submits the returned transaction.
 6. Verify all four `CvaCustodyRegistered` events and on-chain receipts, then complete the governance handoff above.
 
+The repository includes a fail-closed, resumable UAT activation runner. First run its read-only preparation mode:
+
+```sh
+npm run activate:cleanverse:v2 -w @rwcar/contracts
+```
+
+Place rotated UAT credentials only in the ignored local file `.secrets/cleanverse-uat.json`, set its permissions to `0600`, and use this schema:
+
+```json
+{
+  "baseUrl": "https://uatapi.cleanverse.com/api/cooperate",
+  "apiId": "ROTATED_UAT_API_ID",
+  "apiKey": "ROTATED_BASE64_AES_KEY"
+}
+```
+
+Never commit this file or paste its contents into chat, logs, tickets, or deployment manifests. After reviewing the prepared subjects and exact custody bindings, execute with the explicit interlock:
+
+```sh
+npm run activate:cleanverse:v2 -w @rwcar/contracts -- \
+  --execute --confirm=ACTIVATE_RWCAR_V2_CLEANVERSE_UAT
+```
+
+The runner verifies live owners and factory bindings, recovers each EIP-191 signer, queries pool/role/registration state before mutation, waits for three confirmations, and can safely resume from authoritative state. It writes only public transaction evidence to `deployments/monad-testnet-v2.cleanverse.json`; signatures, credentials, and the activation journal stay under `.secrets/`. It never changes protocol readiness or unpauses entry.
+
 The auctions, factory, oracle, and risk manager do not custody tokens. The factory only performs constrained registrations. For each registration preserve response code, chain transaction hash, address, token, policy-pool address, rules, timestamp, signature-message digest, and operator approval in the manifest. An ordinary wallet A-Pass does not prove contract-custody eligibility.
 
 ## Oracle activation

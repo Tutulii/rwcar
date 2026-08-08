@@ -10,6 +10,7 @@
     "deploy:uat": "npm run build && node scripts/deploy-uat.mjs",
     "deploy:uat:v2": "npm run build && node scripts/deploy-v2-uat.mjs",
     "deploy:uat:v2:secure": "npm run build && node scripts/run-v2-uat-deployment.mjs",
+    "activate:cleanverse:v2": "node scripts/activate-v2-cleanverse-uat.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "hardhat clean"
   },

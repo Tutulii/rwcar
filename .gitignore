@@ -7,6 +7,7 @@ dist/
 deployments/*.private.json
 deployments/*.journal.jsonl
 deployments/*.plan.json
+deployments/*.cleanverse-plan.json
 *.log
 coverage/
 artifacts/
