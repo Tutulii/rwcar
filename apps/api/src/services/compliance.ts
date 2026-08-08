@@ -55,6 +55,12 @@ export class ComplianceService {
     const poolEligible = pool
       ? await this.chain.poolEligible(CONTRACTS.validator, pool, wallet)
       : null;
+    const onChainPolicyFallback = supportedSettlementFallback
+      && verification.code === 1
+      && apass.active
+      && application.issued
+      && !application.paused
+      && applicationBound;
     const value: ComplianceResult = {
       wallet,
       asset,
@@ -67,6 +73,9 @@ export class ComplianceService {
       subGroup: apass.subGroup,
       countries: apass.countries,
       verificationCode: verification.code,
+      eligibilitySource: verification.code === 4
+        ? 'CLEANVERSE_API'
+        : onChainPolicyFallback ? 'ONCHAIN_POLICY_POOL' : null,
       assetIssued: application.issued && applicationBound,
       assetPaused: application.paused || !application.pauseKnown || !applicationBound,
       poolEligible,
@@ -111,16 +120,28 @@ export class ComplianceService {
       this.cleanverse.querySupportedAsset(MONAD_TESTNET.cleanverseChain, asset),
       this.chain.tokenPolicyState(asset),
     ]);
+    let codeHash: `0x${string}` | null = null;
+    if (!supported) {
+      try { codeHash = await this.chain.contractCodeHash(asset); } catch { codeHash = null; }
+    }
+    const deploymentPinned = supported === null
+      && this.config.V2_SETTLEMENT_TOKEN_CODE_HASH !== undefined
+      && codeHash?.toLowerCase() === this.config.V2_SETTLEMENT_TOKEN_CODE_HASH.toLowerCase();
     return {
-      issued: supported !== null,
+      issued: supported !== null || deploymentPinned,
       paused: policyState.paused,
       pauseKnown: true,
-      status: supported ? 'SUPPORTED' : null,
+      status: supported ? 'SUPPORTED' : deploymentPinned ? 'DEPLOYMENT_PINNED' : null,
       chain: supported?.chain ?? MONAD_TESTNET.cleanverseChain,
-      tokenAddress: supported?.tokenAddress ?? null,
+      tokenAddress: supported?.tokenAddress ?? (deploymentPinned ? asset.toLowerCase() : null),
       raw: {
-        verificationSource: 'query_deposit_atoken_list+policy.isPaused',
+        verificationSource: supported
+          ? 'query_deposit_atoken_list+policy.isPaused'
+          : 'deployment-code-hash+policy.isPaused',
         supportedAsset: supported?.raw ?? null,
+        registryRotated: supported === null,
+        deploymentPinned,
+        runtimeCodeHash: codeHash,
         policyAddress: policyState.policy,
         policyPaused: policyState.paused,
       },
@@ -183,11 +204,20 @@ function decisionReasons(
 ): TransferGraphCheck['blockingReasons'] {
   const reasons: TransferGraphCheck['blockingReasons'] = [];
   if (!result.cviActive) reasons.push(result.verificationCode === 2 ? 'CVI_MISSING' : 'CVI_INACTIVE');
-  if (result.verificationCode !== 4 || (!registeredCustody && result.poolEligible === false)) reasons.push('CVI_INELIGIBLE');
+  if (!hasEligibleCviProof(result, registeredCustody) || (!registeredCustody && result.poolEligible === false)) {
+    reasons.push('CVI_INELIGIBLE');
+  }
   if (!result.assetIssued) reasons.push('CVA_NOT_ISSUED');
   if (result.assetPaused) reasons.push('CVA_PAUSED');
   if (!registeredCustody && result.poolEligible === null) reasons.push('COMPLIANCE_UNAVAILABLE');
   return reasons;
+}
+
+export function hasEligibleCviProof(result: ComplianceResult, registeredCustody = false) {
+  return result.verificationCode === 4 || (
+    result.eligibilitySource === 'ONCHAIN_POLICY_POOL'
+      && (result.poolEligible === true || registeredCustody)
+  );
 }
 
 function decisionRow(
@@ -230,6 +260,7 @@ function decisionRow(
     },
     rawResult: {
       verificationCode: result.verificationCode,
+      eligibilitySource: result.eligibilitySource,
       checkedAt: result.checkedAt,
       registeredCustody,
       blockingReasons,

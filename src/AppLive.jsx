@@ -126,7 +126,10 @@ function WalletControl({ auth, compliance, complianceState }) {
     return () => window.removeEventListener('keydown', close);
   }, [detailsOpen]);
   if (!auth.authenticated) return <button className="button primary small" disabled={!auth.ready} onClick={auth.login}><Icon name="wallet" size={16}/>{auth.ready ? 'Connect Wallet' : 'Initializing…'}</button>;
-  const cviVerified = Boolean(compliance?.cviActive && compliance?.verificationCode === 4);
+  const cviVerified = Boolean(compliance?.cviActive && (
+    compliance?.verificationCode === 4
+      || (compliance?.eligibilitySource === 'ONCHAIN_POLICY_POOL' && compliance?.poolEligible === true)
+  ));
   const apassActive = Boolean(compliance?.cviActive && compliance?.apassStatus === 1);
   const pending = complianceState === 'loading' || complianceState === 'idle';
   const unavailable = complianceState === 'error';
@@ -154,7 +157,7 @@ function WalletControl({ auth, compliance, complianceState }) {
           <div><dt>Jurisdiction</dt><dd>{compliance?.countries?.join(', ') || 'Not reported'}</dd></div>
           <div><dt>Expires</dt><dd>{expiry}</dd></div>
           <div><dt>Pool eligibility</dt><dd className={compliance?.poolEligible ? 'success-text' : ''}>{unavailable ? 'Unavailable' : compliance?.poolEligible === true ? 'Eligible' : compliance?.poolEligible === false ? 'Not eligible' : 'Checking'}</dd></div>
-          <div><dt>Verification code</dt><dd>{unavailable ? 'Unavailable' : compliance?.verificationCode ?? '—'}{!unavailable && compliance?.verificationCode === 4 ? ' · Transfer allowed' : ''}</dd></div>
+          <div><dt>Verification code</dt><dd>{unavailable ? 'Unavailable' : compliance?.verificationCode ?? '—'}{!unavailable && cviVerified ? compliance?.eligibilitySource === 'ONCHAIN_POLICY_POOL' ? ' · On-chain policy eligible' : ' · Transfer allowed' : ''}</dd></div>
         </dl>
         <div className="identity-modal-foot"><Icon name="check" size={13}/><span>Live result checked {compliance?.checkedAt ? dateTime(compliance.checkedAt) : 'when wallet verification completes'}</span></div>
       </section>

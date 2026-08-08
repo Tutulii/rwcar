@@ -33,6 +33,7 @@ const wallet = '0x0000000000000000000000000000000000000001' as Address;
 const pool = '0x0000000000000000000000000000000000000002' as Address;
 const custody = '0x0000000000000000000000000000000000000004' as Address;
 const factory = '0x0000000000000000000000000000000000000005' as Address;
+const settlementCodeHash = `0x${'ab'.repeat(32)}` as const;
 
 function databaseStub() {
   const rows: unknown[] = [];
@@ -99,12 +100,70 @@ describe('Compliance settlement-token proof', () => {
     } as Partial<CleanverseClient>);
     const chain = {
       tokenPolicyState: async () => ({ policy: pool, paused: false }),
+      contractCodeHash: async () => settlementCodeHash,
       poolEligible: async () => true,
     } as unknown as ChainService;
     const result = await new ComplianceService(config, db, cleanverse, chain)
       .verify(wallet, CONTRACTS.aUsdc, undefined, randomUUID(), pool);
     assert.equal(result.assetIssued, false);
     assert.equal(result.assetPaused, true);
+  });
+
+  it('survives a registry rotation only with pinned bytecode and live on-chain eligibility', async () => {
+    const { db } = databaseStub();
+    const cleanverse = apassClient({
+      verifyApass: async () => ({ code: 1, allowed: false, raw: { code: 1 } }),
+      querySupportedAsset: async () => null,
+    } as Partial<CleanverseClient>);
+    const chain = {
+      tokenPolicyState: async () => ({ policy: pool, paused: false }),
+      contractCodeHash: async () => settlementCodeHash,
+      poolEligible: async () => true,
+      factoryCustodyRegistered: async () => false,
+    } as unknown as ChainService;
+    const service = new ComplianceService(
+      { ...config, V2_SETTLEMENT_TOKEN_CODE_HASH: settlementCodeHash },
+      db,
+      cleanverse,
+      chain,
+    );
+
+    const result = await service.verify(wallet, CONTRACTS.aUsdc, undefined, randomUUID(), pool);
+    assert.equal(result.assetIssued, true);
+    assert.equal(result.assetPaused, false);
+    assert.equal(result.verificationCode, 1, 'the upstream registry miss remains auditable');
+    assert.equal(result.eligibilitySource, 'ONCHAIN_POLICY_POOL');
+
+    const [check] = await service.evaluateTransferGraph([{
+      token: CONTRACTS.aUsdc,
+      from: wallet,
+      to: custody,
+      amount: '1000',
+      purpose: 'PRINCIPAL',
+      policyPool: pool,
+    }], new Map(), randomUUID(), { action: 'FILL_OFFER', resourceType: 'offer', resourceId: '1' });
+    assert.equal(check?.eligible, true);
+    assert.deepEqual(check?.blockingReasons, []);
+
+    const deniedService = new ComplianceService(
+      { ...config, V2_SETTLEMENT_TOKEN_CODE_HASH: settlementCodeHash },
+      db,
+      cleanverse,
+      {
+        ...chain,
+        poolEligible: async () => false,
+      } as unknown as ChainService,
+    );
+    const [denied] = await deniedService.evaluateTransferGraph([{
+      token: CONTRACTS.aUsdc,
+      from: wallet,
+      to: custody,
+      amount: '1000',
+      purpose: 'PRINCIPAL',
+      policyPool: pool,
+    }], new Map(), randomUUID(), { action: 'FILL_OFFER', resourceType: 'offer', resourceId: '2' });
+    assert.equal(denied?.eligible, false, 'the pinned token never bypasses the live policy pool');
+    assert.deepEqual(denied?.blockingReasons, ['CVI_INELIGIBLE']);
   });
 });
 

@@ -20,7 +20,7 @@ import { encodeFunctionData, zeroAddress, type Address } from 'viem';
 import type { ApiConfig } from '../config.js';
 import { AppError } from '../errors.js';
 import type { ChainService, MarketMetadata } from './chain.js';
-import type { ComplianceService } from './compliance.js';
+import { hasEligibleCviProof, type ComplianceService } from './compliance.js';
 import {
   calculateFillEconomics,
   calculateLiquidationWaterfall,
@@ -186,7 +186,7 @@ export class V2PreflightService {
     const reasons: Reason[] = [];
     for (const result of compliance) {
       if (!result.cviActive) reasons.push(result.verificationCode === 2 ? 'CVI_MISSING' : 'CVI_INACTIVE');
-      if (result.verificationCode !== 4 || result.poolEligible !== true) reasons.push('CVI_INELIGIBLE');
+      if (!hasEligibleCviProof(result) || result.poolEligible !== true) reasons.push('CVI_INELIGIBLE');
       if (!result.assetIssued) reasons.push('CVA_NOT_ISSUED');
       if (result.assetPaused) reasons.push('CVA_PAUSED');
       if (result.poolEligible === null) reasons.push('COMPLIANCE_UNAVAILABLE');
@@ -628,7 +628,8 @@ export class V2PreflightService {
       correlationId,
       market,
     );
-    const useEscrow = !buyerCompliance.cviActive || buyerCompliance.verificationCode !== 4 || buyerCompliance.poolEligible !== true;
+    const useEscrow = !buyerCompliance.cviActive || !hasEligibleCviProof(buyerCompliance)
+      || buyerCompliance.poolEligible !== true;
     const paymentRecipient = useEscrow
       ? marketMetadata.settlementEscrow
       : position.buyer as Address;

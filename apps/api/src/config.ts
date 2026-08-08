@@ -24,6 +24,7 @@ const ConfigSchema = z.object({
   RISK_MANAGER_V2_ADDRESS: OptionalAddress,
   FEE_TREASURY_ADDRESS: OptionalAddress,
   V2_SETTLEMENT_TOKEN_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/).default(CONTRACTS.aUsdc),
+  V2_SETTLEMENT_TOKEN_CODE_HASH: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
   AUSDC_CLEANVERSE_REQUEST_ID: z.string().min(1).optional(),
   V2_QUOTE_TTL_SECONDS: z.coerce.number().int().min(5).max(120).default(30),
   V2_ALLOWED_DURATIONS: z.string().default('300'),

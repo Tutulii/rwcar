@@ -104,6 +104,7 @@ const api = writeEnvironment('railway-api.env', {
   RISK_MANAGER_V2_ADDRESS: deployment.contracts.riskManager,
   FEE_TREASURY_ADDRESS: deployment.roles.feeTreasury,
   V2_SETTLEMENT_TOKEN_ADDRESS: deployment.externalContracts.settlementToken,
+  V2_SETTLEMENT_TOKEN_CODE_HASH: deployment.frontendTrustedManifestDraft.settlementToken.runtimeCodeHash,
   COMPLIANCE_VALIDATOR_ADDRESS: deployment.externalContracts.complianceValidator,
   V2_QUOTE_TTL_SECONDS: '30',
   V2_ALLOWED_DURATIONS: deployment.parameters.allowedDurations.join(','),
