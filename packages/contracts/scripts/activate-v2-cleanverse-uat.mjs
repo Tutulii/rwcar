@@ -235,7 +235,17 @@ const rule = {
   is_black_list: false,
   countries: [],
 };
-const evidence = { ...publicPlan, status: 'CLEANVERSE_REGISTERED_SMOKE_PENDING', rule, transactions: {} };
+const ruleDigest = keccak256(toHex(JSON.stringify(rule)));
+const priorTransactions = {};
+if (existsSync(journalPath)) {
+  for (const line of readFileSync(journalPath, 'utf8').split(/\n/).filter(Boolean)) {
+    const entry = JSON.parse(line);
+    if (entry.state === 'CONFIRMED' && /^0x[a-fA-F0-9]{64}$/.test(entry.txHash ?? '')) {
+      priorTransactions[entry.stage] = { txHash: entry.txHash, blockNumber: String(entry.blockNumber) };
+    }
+  }
+}
+const evidence = { ...publicPlan, status: 'CLEANVERSE_REGISTERED_SMOKE_PENDING', rule, ruleDigest, transactions: priorTransactions };
 for (const [key, pool, signature] of [
   ['marketPolicyPool', poolAddresses[0], signatures.repoMarket],
   ['marginPolicyPool', poolAddresses[1], signatures.marginEngine],
@@ -248,9 +258,10 @@ for (const [key, pool, signature] of [
       owner_signature: signature,
     }, true);
     const hash = mutationHash(response, key);
+    record({ stage: key, txHash: hash, state: 'SUBMITTED' });
     const receipt = await waitForSuccess(key, hash);
     evidence.transactions[key] = { txHash: hash, blockNumber: receipt.blockNumber.toString() };
-  } else {
+  } else if (!evidence.transactions[key]?.txHash) {
     evidence.transactions[key] = { alreadyRegistered: true };
   }
   if (!await readRegistered(pool)) throw new Error(`${key} is not registered after confirmation`);
@@ -269,6 +280,7 @@ if (!registrarGranted) {
     owner_signature: signatures.moduleFactory,
   }, true);
   const hash = mutationHash(response, 'moduleFactoryRegistrarRole');
+  record({ stage: 'moduleFactoryRegistrarRole', txHash: hash, state: 'SUBMITTED' });
   const receipt = await waitForSuccess('moduleFactoryRegistrarRole', hash);
   evidence.transactions.moduleFactoryRegistrarRole = { txHash: hash, blockNumber: receipt.blockNumber.toString() };
   registrarGranted = await publicClient.readContract({
@@ -328,6 +340,8 @@ for (const key of ['marketPolicyPool', 'marketVault', 'marketSettlementEscrow', 
   deployment.cleanverse[key].registered = true;
   deployment.cleanverse[key].transactionHash = evidence.transactions[key]?.txHash ?? null;
 }
+deployment.cleanverse.marketPolicyPool.ruleDigest = ruleDigest;
+deployment.cleanverse.marginPolicyPool.ruleDigest = ruleDigest;
 writeFileSync(deploymentPath, `${JSON.stringify(deployment, null, 2)}\n`, { mode: 0o644 });
 console.log(JSON.stringify({
   status: evidence.status,

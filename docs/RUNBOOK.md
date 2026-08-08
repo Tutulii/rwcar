@@ -106,6 +106,21 @@ The helper transfers only balance shortfalls, refuses overlapping roles, waits f
 
 After `RiskManagerV2.configDelay()` has elapsed, compare the complete pending tuple to the approved manifest and have the multisig call `applyConfig(CVA, exactConfig)`. A hash mismatch or early call must revert. Record the `ConfigApplied` hash and decoded tuple.
 
+The UAT governance finalizer combines the ownership acceptances with that exact delayed risk application. Its default mode is read-only and reports every blocker:
+
+```sh
+npm run finalize:governance:v2 -w @rwcar/contracts
+```
+
+Execute only after the report is ready:
+
+```sh
+npm run finalize:governance:v2 -w @rwcar/contracts -- \
+  --execute --confirm=FINALIZE_RWCAR_V2_UAT_GOVERNANCE
+```
+
+It requires both pools and all four custody bindings to be registered live, requires the factory's live `REGISTER_ROLE`, matches the pending risk hash to the reviewed manifest, and rejects execution before the timelock. It transfers the factory last-mile ownership, accepts every two-step ownership from the final owner, applies only the exact scheduled risk tuple, and proves both engines remain paused with readiness false. It does not run smoke tests or activate public entry.
+
 ## Cleanverse custody authorization
 
 Do not use the documentation-mismatched on-chain rule-management functions. Use the supported Cleanverse API/control-plane path and the confirmed runtime `complianceVerify(pool,user)` surface.
