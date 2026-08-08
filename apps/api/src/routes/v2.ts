@@ -40,20 +40,40 @@ export function registerV2Routes(
   const vault = config.COLLATERAL_VAULT_V2_ADDRESS as Address | undefined;
   const auctionHouse = config.DUTCH_AUCTION_V2_ADDRESS as Address | undefined;
   const marginEngine = config.MARGIN_ENGINE_V2_ADDRESS as Address | undefined;
+  let auctionHouseCache: Address[] | undefined;
+  let auctionHousePending: Promise<Address[]> | undefined;
   const auctionHouses = async () => {
-    const [marketAuction, marginAuction] = await Promise.all([
+    if (auctionHouseCache) return auctionHouseCache;
+    if (auctionHousePending) return auctionHousePending;
+    const pending = Promise.all([
       market ? chain.marketMetadata(market).then((value) => value.auctionHouse).catch(() => undefined) : undefined,
       marginEngine ? chain.marginMetadata(marginEngine).then((value) => value.auctionHouse).catch(() => undefined) : undefined,
-    ]);
-    return [...new Set([marketAuction, marginAuction].filter((value): value is Address => Boolean(value))
-      .map((value) => value.toLowerCase() as Address))];
+    ]).then(([marketAuction, marginAuction]) => [...new Set(
+      [marketAuction, marginAuction]
+        .filter((value): value is Address => Boolean(value))
+        .map((value) => value.toLowerCase() as Address),
+    )]);
+    auctionHousePending = pending;
+    try {
+      auctionHouseCache = await pending;
+      return auctionHouseCache;
+    } finally {
+      auctionHousePending = undefined;
+    }
   };
 
+  let configCache: { expiresAt: number; value: unknown } | undefined;
+  let configPending: Promise<unknown> | undefined;
   app.get('/v2/config', async () => {
-    const [enabledAssets, deployments, marketProof] = await Promise.all([
+    if (configCache && configCache.expiresAt > Date.now()) return configCache.value;
+    if (configPending) return configPending;
+    const pending = (async () => {
+    const [enabledAssets, deployments, marketProof, marginMetadata, chainHead] = await Promise.all([
       store.listAssets(),
       store.listDeployments(),
       market ? chain.marketMetadata(market).catch(() => null) : Promise.resolve(null),
+      marginEngine ? chain.marginMetadata(marginEngine).catch(() => null) : Promise.resolve(null),
+      chain.blockNumber(),
     ]);
     const v2Deployments = deployments.filter((deployment) => deployment.chainId === 10_143
       && deployment.protocolVersion === 'v2');
@@ -114,7 +134,6 @@ export function registerV2Routes(
     const auctionReady = marketDeploymentMatches
       && attestations.settlementEscrowAusdcReady
       && Boolean(marketProof && marketProof.auctionHouse !== zeroAddress && marketProof.settlementEscrow !== zeroAddress);
-    const marginMetadata = marginEngine ? await chain.marginMetadata(marginEngine).catch(() => null) : null;
     const marginChildRegistered = (module: string, child: Address | undefined) => Boolean(child && marginEngine
       && v2Deployments.some((deployment) => deployment.protocolVersion === 'v2'
         && deployment.module === module
@@ -160,7 +179,6 @@ export function registerV2Routes(
     const primaryMarketVault = vault && provenMarketVaults.includes(vault.toLowerCase())
       ? vault
       : provenMarketVaults.length === 1 ? provenMarketVaults[0] as Address : null;
-    const chainHead = await chain.blockNumber();
     const finalizedBlock = chainHead >= BigInt(config.INDEXER_CONFIRMATIONS) ? chainHead - BigInt(config.INDEXER_CONFIRMATIONS) : 0n;
     const finalizedChainTimestamp = await chain.blockTimestamp(finalizedBlock);
     return {
@@ -210,6 +228,15 @@ export function registerV2Routes(
       quoteTtlSeconds: config.V2_QUOTE_TTL_SECONDS,
       settlementToken: { address: config.V2_SETTLEMENT_TOKEN_ADDRESS, symbol: 'aUSDC', decimals: 6 },
     };
+    })();
+    configPending = pending;
+    try {
+      const value = await pending;
+      configCache = { expiresAt: Date.now() + 5_000, value };
+      return value;
+    } finally {
+      configPending = undefined;
+    }
   });
 
   app.get('/v2/offers', async () => {

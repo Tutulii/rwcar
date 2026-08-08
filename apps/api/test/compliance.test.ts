@@ -31,6 +31,8 @@ const config = {
 
 const wallet = '0x0000000000000000000000000000000000000001' as Address;
 const pool = '0x0000000000000000000000000000000000000002' as Address;
+const custody = '0x0000000000000000000000000000000000000004' as Address;
+const factory = '0x0000000000000000000000000000000000000005' as Address;
 
 function databaseStub() {
   const rows: unknown[] = [];
@@ -159,5 +161,97 @@ describe('Compliance issued-asset proof', () => {
 
     assert.equal(result.assetIssued, true);
     assert.equal(result.assetPaused, true);
+  });
+});
+
+describe('Compliance registered-custody transfer graph', () => {
+  it('keeps participant tier enforcement while accepting an on-chain registered custody endpoint', async () => {
+    const { db, rows } = databaseStub();
+    const cleanverse = apassClient({
+      querySupportedAsset: async () => ({
+        chain: MONAD_TESTNET.cleanverseChain,
+        tokenAddress: CONTRACTS.aUsdc.toLowerCase(),
+        raw: { atoken: { address: CONTRACTS.aUsdc } },
+      }),
+    } as Partial<CleanverseClient>);
+    const chain = {
+      tokenPolicyState: async () => ({ policy: pool, paused: false }),
+      poolEligible: async (_validator: Address, _pool: Address, subject: Address) => subject !== custody,
+      factoryCustodyRegistered: async (
+        actualFactory: Address,
+        actualPool: Address,
+        token: Address,
+        subject: Address,
+      ) => actualFactory === factory
+        && actualPool === pool
+        && token.toLowerCase() === CONTRACTS.aUsdc.toLowerCase()
+        && subject === custody,
+    } as unknown as ChainService;
+    const service = new ComplianceService(
+      { ...config, PROTOCOL_MODULE_FACTORY_V2_ADDRESS: factory },
+      db,
+      cleanverse,
+      chain,
+    );
+
+    const [check] = await service.evaluateTransferGraph([{
+      token: CONTRACTS.aUsdc,
+      from: wallet,
+      to: custody,
+      amount: '5178',
+      purpose: 'AUCTION_PURCHASE',
+      policyPool: pool,
+    }], new Map(), randomUUID(), {
+      action: 'BUY_AUCTION',
+      resourceType: 'auction',
+      resourceId: '2',
+    });
+
+    assert.equal(check?.fromCompliance.poolEligible, true);
+    assert.equal(check?.toCompliance.poolEligible, false);
+    assert.equal(check?.eligible, true);
+    assert.deepEqual(check?.blockingReasons, []);
+    const decisions = rows.flat() as Array<{ wallet: string; decision: string; rawResult: { registeredCustody: boolean } }>;
+    assert.equal(decisions.find((row) => row.wallet === wallet && row.decision)?.decision, 'ALLOWED');
+    assert.equal(decisions.find((row) => row.wallet === custody && row.decision)?.decision, 'ALLOWED');
+    assert.equal(decisions.find((row) => row.wallet === custody && row.decision)?.rawResult.registeredCustody, true);
+  });
+
+  it('fails closed when the custody registration cannot be proven', async () => {
+    const { db } = databaseStub();
+    const cleanverse = apassClient({
+      querySupportedAsset: async () => ({
+        chain: MONAD_TESTNET.cleanverseChain,
+        tokenAddress: CONTRACTS.aUsdc.toLowerCase(),
+        raw: { atoken: { address: CONTRACTS.aUsdc } },
+      }),
+    } as Partial<CleanverseClient>);
+    const chain = {
+      tokenPolicyState: async () => ({ policy: pool, paused: false }),
+      poolEligible: async (_validator: Address, _pool: Address, subject: Address) => subject !== custody,
+      factoryCustodyRegistered: async () => false,
+    } as unknown as ChainService;
+    const service = new ComplianceService(
+      { ...config, PROTOCOL_MODULE_FACTORY_V2_ADDRESS: factory },
+      db,
+      cleanverse,
+      chain,
+    );
+
+    const [check] = await service.evaluateTransferGraph([{
+      token: CONTRACTS.aUsdc,
+      from: wallet,
+      to: custody,
+      amount: '5178',
+      purpose: 'AUCTION_PURCHASE',
+      policyPool: pool,
+    }], new Map(), randomUUID(), {
+      action: 'BUY_AUCTION',
+      resourceType: 'auction',
+      resourceId: '2',
+    });
+
+    assert.equal(check?.eligible, false);
+    assert.deepEqual(check?.blockingReasons, ['CVI_INELIGIBLE']);
   });
 });

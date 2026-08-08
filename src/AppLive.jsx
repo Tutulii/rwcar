@@ -480,6 +480,7 @@ function AppLive() {
   const trustedV2ConfigRef = useRef(null);
   const runtimeVerificationRef = useRef({ checkedAt: 0, result: null });
   const activeV2ExecutionRef = useRef(false);
+  const v2RefreshInFlightRef = useRef(null);
   const [, setPendingRevision] = useState(0);
   const auth = { ready, authenticated, address, login, logout };
   const marginExitAvailable = marginDeploymentVerified(v2Config);
@@ -675,11 +676,14 @@ function AppLive() {
   }, [address, updateSyncError]);
   const refreshV2Data = useCallback(async () => {
     if (v2State !== 'ready') return [];
-    const configResult = await Promise.allSettled([detectV2()]);
-    const publicResult = await Promise.allSettled([loadV2Public()]);
-    const walletResult = await Promise.allSettled([loadV2Wallet()]);
-    return [...configResult, ...publicResult, ...walletResult];
-  }, [v2State, detectV2, loadV2Public, loadV2Wallet]);
+    if (v2RefreshInFlightRef.current) return v2RefreshInFlightRef.current;
+    const pending = Promise.allSettled([loadV2Public(), loadV2Wallet()])
+      .finally(() => {
+        if (v2RefreshInFlightRef.current === pending) v2RefreshInFlightRef.current = null;
+      });
+    v2RefreshInFlightRef.current = pending;
+    return pending;
+  }, [v2State, loadV2Public, loadV2Wallet]);
   const refreshLiveData = useCallback(
     () => Promise.allSettled([loadPublic(), loadPositions(), loadActivity()]),
     [loadPublic, loadPositions, loadActivity],
@@ -738,10 +742,11 @@ function AppLive() {
     let active = true;
     setV2PublicLoaded(false);
     setV2WalletLoaded(false);
-    loadV2Public()
-      .finally(() => { if (active) setV2PublicLoaded(true); })
-      .then(() => loadV2Wallet())
+    const publicLoad = loadV2Public()
+      .finally(() => { if (active) setV2PublicLoaded(true); });
+    const walletLoad = loadV2Wallet()
       .finally(() => { if (active) setV2WalletLoaded(true); });
+    void Promise.allSettled([publicLoad, walletLoad]);
     return () => { active = false; };
   }, [v2State, loadV2Public, loadV2Wallet]);
   useEffect(() => {
@@ -751,6 +756,13 @@ function AppLive() {
     document.addEventListener('visibilitychange', onVisibility);
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); };
   }, [v2State, refreshV2Data]);
+  useEffect(() => {
+    if (v2State !== 'ready') return undefined;
+    const timer = window.setInterval(() => void detectV2(), 60_000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void detectV2(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [v2State, detectV2]);
   useEffect(() => {
     if (v2State === 'ready' || !marginExitAvailable) return undefined;
     let active = true;

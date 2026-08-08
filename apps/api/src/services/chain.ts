@@ -3,7 +3,9 @@ import {
   ContractFunctionRevertedError,
   createPublicClient,
   defineChain,
+  encodeAbiParameters,
   http,
+  keccak256,
   type Address,
 } from 'viem';
 import {
@@ -273,6 +275,7 @@ export interface ChainService {
   contractOwner(contract: Address): Promise<Address>;
   factoryMetadata(factory: Address): Promise<FactoryMetadata>;
   factoryModule(factory: Address, module: Address): Promise<FactoryModuleMetadata>;
+  factoryCustodyRegistered(factory: Address, pool: Address, token: Address, custody: Address): Promise<boolean>;
 }
 
 export function createChainService(config: ApiConfig): ChainService {
@@ -456,6 +459,42 @@ export function createChainService(config: ApiConfig): ChainService {
         client.readContract({ address: factory, abi: protocolModuleFactoryV2Abi, functionName: 'moduleType', args: [module] }),
       ]);
       return { controller, token, moduleType };
+    },
+    async factoryCustodyRegistered(factory: Address, pool: Address, token: Address, custody: Address) {
+      const registrationKey = keccak256(encodeAbiParameters(
+        [{ type: 'address' }, { type: 'address' }, { type: 'address' }],
+        [pool, token, custody],
+      ));
+      const [registered, controller, moduleToken, moduleType] = await Promise.all([
+        client.readContract({
+          address: factory,
+          abi: protocolModuleFactoryV2Abi,
+          functionName: 'custodyRegistered',
+          args: [registrationKey],
+        }),
+        client.readContract({
+          address: factory,
+          abi: protocolModuleFactoryV2Abi,
+          functionName: 'moduleController',
+          args: [custody],
+        }),
+        client.readContract({
+          address: factory,
+          abi: protocolModuleFactoryV2Abi,
+          functionName: 'moduleToken',
+          args: [custody],
+        }),
+        client.readContract({
+          address: factory,
+          abi: protocolModuleFactoryV2Abi,
+          functionName: 'moduleType',
+          args: [custody],
+        }),
+      ]);
+      return registered
+        && controller.toLowerCase() === pool.toLowerCase()
+        && moduleToken.toLowerCase() === token.toLowerCase()
+        && (moduleType === 1 || moduleType === 3);
     },
   };
 }
