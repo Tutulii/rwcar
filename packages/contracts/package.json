@@ -1,0 +1,29 @@
+{
+  "name": "@rwcar/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/compile.mjs",
+    "build:hardhat": "hardhat compile --build-profile production",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "deploy:uat": "npm run build && node scripts/deploy-uat.mjs",
+    "deploy:uat:v2": "npm run build && node scripts/deploy-v2-uat.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "hardhat clean"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.0.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "^3.0.3",
+    "@nomicfoundation/hardhat-node-test-runner": "^3.1.0",
+    "@nomicfoundation/hardhat-viem": "^3.0.4",
+    "@nomicfoundation/hardhat-viem-assertions": "^3.0.5",
+    "ganache": "^7.9.2",
+    "hardhat": "^3.12.0",
+    "solc": "0.8.24",
+    "typescript": "^5.9.3",
+    "viem": "^2.55.11"
+  }
+}

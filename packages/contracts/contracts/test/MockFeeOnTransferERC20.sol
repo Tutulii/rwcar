@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract MockFeeOnTransferERC20 is ERC20 {
+    bool public feeEnabled;
+    uint16 public immutable feeBps;
+
+    constructor(uint16 feeBps_) ERC20("Fee CVA", "fCVA") {
+        feeBps = feeBps_;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function setFeeEnabled(bool enabled) external {
+        feeEnabled = enabled;
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        if (feeEnabled && from != address(0) && to != address(0)) {
+            uint256 fee = value * feeBps / 10_000;
+            super._update(from, address(0), fee);
+            super._update(from, to, value - fee);
+        } else {
+            super._update(from, to, value);
+        }
+    }
+}

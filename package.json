@@ -1,0 +1,43 @@
+{
+  "name": "rwcar",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "dev:api": "npm run dev -w @rwcar/api",
+    "dev:indexer": "npm run dev -w @rwcar/indexer",
+    "build": "npm run build -w @rwcar/shared && npm run build -w @rwcar/db && npm run build -w @rwcar/contracts && npm run build -w @rwcar/api && npm run build -w @rwcar/indexer && npm run build:web",
+    "build:web": "vite build",
+    "typecheck": "npm run build -w @rwcar/shared && npm run build -w @rwcar/db && npm run typecheck --workspaces --if-present",
+    "test": "npm run test -w @rwcar/contracts && npm run test -w @rwcar/api && npm run test -w @rwcar/indexer && npm run test:web-security",
+    "test:web-security": "node --import tsx --test test/v2-security.test.mjs",
+    "test:contracts": "npm run test -w @rwcar/contracts",
+    "deploy:uat:v2": "npm run deploy:uat:v2 -w @rwcar/contracts",
+    "db:generate": "npm run db:generate -w @rwcar/db",
+    "db:migrate": "npm run db:migrate -w @rwcar/db",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@privy-io/react-auth": "^3.36.1",
+    "@vitejs/plugin-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "viem": "^2.55.11",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "axios": "^1.19.0",
+    "uuid": "^11.1.1",
+    "ws": "^8.21.2"
+  }
+}

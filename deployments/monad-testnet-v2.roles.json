@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "environment": "monad-testnet-v2-uat",
+  "createdAt": "2026-08-08T00:06:33.460Z",
+  "roles": {
+    "deployer": "0xe88032334ACf605fb0D0aEa3fB11C5C040524e6c",
+    "owner": "0x8f1a7FDEeC11282A0A3ED5B9F6791D8B8d05E35e",
+    "factoryActivationOwner": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+    "pauseGuardian": "0x178B7B51fF3330025d2F224Ecb4C967a193adAD4",
+    "feeTreasury": "0x505dbD2BAb448DDBF09DfFaB6A932565bab9aDFa",
+    "oracleSigner1": "0xA66a66B1a1219Eb6b3711E67F1e84C751bFbD8f5",
+    "oracleSigner2": "0xE69E4791158ba0092e3292d20e00c2a0180584A6",
+    "oracleSigner3": "0x04221Af9340Ac4EBd805Eb0C592e645938EaE940"
+  },
+  "security": {
+    "privateKeysPrinted": false,
+    "encryptedBundleIgnoredByGit": true,
+    "disposableTestnetOnly": true,
+    "productionApproved": false
+  }
+}

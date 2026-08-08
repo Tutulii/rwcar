@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "v2",
+  "status": "PLANNED_NOT_ACTIVE",
+  "network": {
+    "name": "Monad Testnet",
+    "chainId": 10143,
+    "rpcUrlRecordedSeparately": true
+  },
+  "generatedAt": null,
+  "release": {
+    "sourceRevision": null,
+    "compiler": "solc 0.8.24; optimizer 500 runs; viaIR true",
+    "artifacts": {
+      "CvaAssetRegistry": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "ProtocolModuleFactoryV2": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "RiskManagerV2": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "SignedValuationOracle": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "RepoMarketV2": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "MarginEngineV2": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "CollateralVaultV2": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "DutchAuctionV2": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null },
+      "SettlementEscrowV2": { "sourceName": null, "initCodeHash": null, "compiledRuntimeTemplateHash": null, "initCodeBytes": null, "runtimeCodeBytes": null }
+    }
+  },
+  "roles": {
+    "deployer": null,
+    "pendingOwner": null,
+    "factoryActivationOwner": null,
+    "pauseGuardian": null,
+    "feeTreasury": null,
+    "oracleSigners": [null, null, null]
+  },
+  "externalContracts": {
+    "cvaAsset": null,
+    "settlementToken": null,
+    "complianceValidator": null,
+    "cvaReferenceHash": null
+  },
+  "parameters": {
+    "cvaDecimals": null,
+    "protocolFeeBps": null,
+    "gracePeriod": null,
+    "allowedDurations": [],
+    "riskConfigDelay": null,
+    "riskConfig": {
+      "enabled": true,
+      "initialLtvBps": null,
+      "maintenanceLtvBps": null,
+      "liquidationLtvBps": null,
+      "auctionStartBps": null,
+      "auctionFloorBps": null,
+      "liquidationFeeBps": null,
+      "earlyMinHoldBps": null,
+      "earlyBreakFeeBps": null,
+      "defaultSpreadBps": null,
+      "maxDefaultRateBps": null,
+      "maxOracleAge": null,
+      "auctionDuration": null,
+      "marginCallPeriod": null,
+      "staleOracleFallbackDelay": null
+    }
+  },
+  "safety": {
+    "deployerIsOneTime": true,
+    "entryPausedAtHandoff": true,
+    "cleanverseReadinessAtHandoff": false,
+    "ownerContractRequired": true,
+    "factoryActivationOwnerMustBeEoa": true,
+    "executeRequiresConfirmation": "DEPLOY_RWCAR_V2_TO_MONAD_TESTNET_10143"
+  },
+  "contracts": {
+    "assetRegistry": null,
+    "moduleFactory": null,
+    "riskManager": null,
+    "valuationOracle": null,
+    "repoMarket": null,
+    "marketVault": null,
+    "marketAuction": null,
+    "marketSettlementEscrow": null,
+    "marginEngine": null,
+    "marginVault": null,
+    "marginAuction": null,
+    "marginSettlementEscrow": null
+  },
+  "deploymentBlocks": {},
+  "transactions": {},
+  "deployedCode": {},
+  "ownership": {
+    "contracts": {
+      "assetRegistry": { "currentOwner": null, "pendingOwner": null, "accepted": false },
+      "riskManager": { "currentOwner": null, "pendingOwner": null, "accepted": false },
+      "valuationOracle": { "currentOwner": null, "pendingOwner": null, "accepted": false },
+      "repoMarket": { "currentOwner": null, "pendingOwner": null, "accepted": false },
+      "marginEngine": { "currentOwner": null, "pendingOwner": null, "accepted": false },
+      "moduleFactory": { "currentOwner": null, "pendingOwner": null, "finalOwner": null, "activationComplete": false, "accepted": false }
+    },
+    "acceptanceTransactions": {}
+  },
+  "cleanverse": {
+    "moduleFactoryRegistrarRole": { "granted": false, "requestId": null, "transactionHash": null },
+    "marketPolicyPool": { "registered": false, "ruleDigest": null, "requestId": null, "transactionHash": null },
+    "marketVault": { "registered": false, "asset": null, "requestId": null, "transactionHash": null },
+    "marketSettlementEscrow": { "registered": false, "asset": null, "requestId": null, "transactionHash": null },
+    "marginPolicyPool": { "registered": false, "ruleDigest": null, "requestId": null, "transactionHash": null },
+    "marginVault": { "registered": false, "asset": null, "requestId": null, "transactionHash": null },
+    "marginSettlementEscrow": { "registered": false, "asset": null, "requestId": null, "transactionHash": null }
+  },
+  "riskActivation": {
+    "scheduled": false,
+    "configHash": null,
+    "scheduledTransaction": null,
+    "executeAfter": null,
+    "applied": false,
+    "appliedTransaction": null
+  },
+  "oracleActivation": {
+    "signerSetVerified": false,
+    "valuationDigest": null,
+    "evidenceHash": null,
+    "nonce": null,
+    "validUntil": null,
+    "acceptedTransaction": null
+  },
+  "smokeProofs": {
+    "marketVaultDeposit": null,
+    "marketVaultWithdrawal": null,
+    "marketEscrowFundAndClaim": null,
+    "marginVaultDeposit": null,
+    "marginVaultWithdrawal": null,
+    "marginEscrowFundAndClaim": null,
+    "reconciliationReportHash": null
+  },
+  "readiness": {
+    "marketAssetVaultReadyTransaction": null,
+    "marginCustodyReadyTransaction": null,
+    "isolatedEntryUnpausedTransaction": null,
+    "marginEntryUnpausedTransaction": null,
+    "partialFillsEnabled": false,
+    "earlyRepurchaseEnabled": false,
+    "dutchAuctionsEnabled": false,
+    "crossMarginEnabled": false
+  },
+  "serviceConfiguration": {
+    "PROTOCOL_MODULE_FACTORY_V2_ADDRESS": null,
+    "REPO_MARKET_V2_ADDRESS": null,
+    "COLLATERAL_VAULT_V2_ADDRESS": null,
+    "SETTLEMENT_ESCROW_V2_ADDRESS": null,
+    "DUTCH_AUCTION_V2_ADDRESS": null,
+    "MARGIN_ENGINE_V2_ADDRESS": null,
+    "VALUATION_ORACLE_V2_ADDRESS": null,
+    "RISK_MANAGER_V2_ADDRESS": null,
+    "V2_SETTLEMENT_TOKEN_ADDRESS": null,
+    "V2_ALLOWED_DURATIONS": null,
+    "V2_MARGIN_ENABLED": false,
+    "V2_REPO_POLICY_POOL_REGISTERED": false,
+    "V2_FEE_TREASURY_AUSDC_ELIGIBLE": false,
+    "V2_SETTLEMENT_ESCROW_AUSDC_READY": false,
+    "V2_MARGIN_POLICY_POOL_REGISTERED": false,
+    "V2_MARGIN_VAULT_CUSTODY_READY": false,
+    "V2_MARGIN_ESCROW_AUSDC_READY": false,
+    "V2_MARGIN_TREASURY_AUSDC_ELIGIBLE": false,
+    "V2_DEPLOYMENTS_JSON": []
+  },
+  "indexerSources": [],
+  "acceptance": {
+    "indexerCaughtUpToFinalizedHead": false,
+    "apiReadinessMatchesChain": false,
+    "isolatedRepoMatrixPassed": false,
+    "auctionMatrixPassed": false,
+    "crossMarginMatrixPassed": false,
+    "rollbackDrillPassed": false,
+    "approvedBy": [],
+    "approvedAt": null
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "network": "Monad Testnet",
+  "chainId": 10143,
+  "deployedAt": "2026-08-05",
+  "deployer": "0xfFd1cD894881Ebb2A59c21C500893Cd4ee0845F8",
+  "pendingOwner": "0xF7100Bcc9B352f18b80018D7708177C3C04a128D",
+  "ownership": {
+    "accepted": true,
+    "owner": "0xF7100Bcc9B352f18b80018D7708177C3C04a128D",
+    "assetRegistryAcceptanceBlock": 51058614,
+    "repoMarketAcceptanceBlock": 51058621
+  },
+  "feeTreasury": "0xF7100Bcc9B352f18b80018D7708177C3C04a128D",
+  "assetRegistry": "0x38a859695c32eea74b51c0f098039e15e616d5d6",
+  "repoMarket": "0x90535a7176a3b2c251c834b28e11e245622ee808",
+  "deploymentBlock": 51054911,
+  "settlementToken": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
+  "complianceValidator": "0xaC7e5179C2C7f03f209136886c172eb34F161792",
+  "enabledCva": "0x7A33e03B10268FFdB50e562721B092BC0Cb793F9",
+  "cvaReferenceHash": "0xb5231edafb76c0b32468759cbf2738977bf8504476fde4638a516686c95b5afe",
+  "valuation": {
+    "recordId": "f9d80967-d6cf-4bf7-88df-9285232b0d26",
+    "valueMinor": "10000",
+    "currency": "USD",
+    "source": "RWCAR UAT Synthetic Receivable Note",
+    "evidenceHash": "0xd16689da2bcaf7f8ade3b397024af4a853ad2ec4178bcc0bef7e288b2370f15f",
+    "valuationHash": "0xa075a91ee2b6428706d4d2064e5ad4ca6047348f73097669d3dffa325671c5a0",
+    "signer": "0x911F99f424D47F08a15fcC771e94dcc2f7252B02",
+    "validUntil": "2026-09-04T11:32:49.000Z",
+    "storage": {
+      "provider": "Cloudflare R2",
+      "bucket": "rwcar-evidence",
+      "recordId": "5dc77abd-42a9-4e82-9d33-30ac55140de3",
+      "objectKey": "evidence/0x7a33e03b10268ffdb50e562721b092bc0cb793f9/8d385ee5-2323-41b6-bc0a-c01b439423b6",
+      "contentLength": 55682,
+      "encryption": "R2:MANAGED-ENCRYPTION",
+      "downloadHashVerified": true
+    }
+  },
+  "protocolFeeBps": 15,
+  "allowedDurations": [300],
+  "gracePeriod": 120,
+  "cleanversePool": {
+    "registered": true,
+    "registrationBlock": 51055960,
+    "rule": {
+      "allowedGroup": "",
+      "allowedSubGroup": "",
+      "minTier": 30,
+      "minSubTier": 0,
+      "isBlackList": false,
+      "countries": []
+    },
+    "sellerVerified": true,
+    "buyerVerified": true
+  },
+  "transactions": {
+    "deployAssetRegistry": "0x1e9129c9ed2e5b3c9fbf637396984c97a8b20165256dd8deb93c746432e7a732",
+    "enableRwrn01": "0xb567e5607eb808c7cc08c0a8027bf64763f5e2a2e616a7cc7573971ac9bba5a7",
+    "deployRepoMarket": "0x9706fc9b1aecce2a3333872655f2a163540d37bd9930d3cb07bb25945f689336",
+    "startRegistryOwnershipTransfer": "0x228e5cc16285e1bac6d69f33df1b31f629b9cd8681fb60a3d09c7e5ff2dcc86a",
+    "startMarketOwnershipTransfer": "0x639f63085c02ff1e1f2182289c1a07f539b6066039d9827e4a26e2266cd89f0f",
+    "acceptRegistryOwnership": "0x32c142ad8042f8572fe91f46e5019fcb739cecb747a57bb0525cc6d749bf7665",
+    "acceptMarketOwnership": "0x5a95660dc3a67fe4e0df1362952091f4ef82e4f7b73469d55c0530eec44ee566",
+    "cleanversePoolRegistration": "0x6d98f1c3ee63fe9168b65565f5bc33060ba4c73cd43b59dfc9d1c926632c8ed3"
+  }
+}
