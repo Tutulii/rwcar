@@ -41,6 +41,7 @@ describe('Railway deployment packaging', () => {
       assert.match(dockerfile, new RegExp(`ENV ${key}=`));
     }
     assert.match(dockerfile, /COPY packages\/shared packages\/shared/);
+    assert.match(dockerfile, /COPY tsconfig\.base\.json/);
     assert.match(dockerfile, /scripts\/serve-static\.mjs/);
   });
 
