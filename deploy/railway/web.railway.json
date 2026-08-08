@@ -7,6 +7,7 @@
       "/src/**",
       "/index.html",
       "/scripts/serve-static.mjs",
+      "/deploy/railway/web.railway.json",
       "/Dockerfile.web",
       "/package.json",
       "/package-lock.json"

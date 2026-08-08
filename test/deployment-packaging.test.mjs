@@ -20,6 +20,7 @@ describe('Railway deployment packaging', () => {
       assert.equal(config.$schema, 'https://railway.com/railway.schema.json');
       assert.equal(config.build.builder, 'DOCKERFILE');
       assert.equal(config.build.dockerfilePath, dockerfilePath);
+      assert.equal(config.build.watchPatterns.includes(`/deploy/railway/${service}.railway.json`), true);
       assert.equal(config.deploy.restartPolicyType, 'ON_FAILURE');
       assert.equal(config.deploy.restartPolicyMaxRetries, 10);
     }
@@ -27,8 +28,9 @@ describe('Railway deployment packaging', () => {
 
   it('migrates and safely bootstraps before the API release starts', () => {
     const config = json('deploy/railway/api.railway.json');
-    assert.match(config.deploy.preDeployCommand, /packages\/db\/dist\/migrate\.js/);
-    assert.match(config.deploy.preDeployCommand, /packages\/db\/dist\/bootstrap-uat\.js/);
+    assert.deepEqual(config.deploy.preDeployCommand, [
+      "sh -c 'node packages/db/dist/migrate.js && node packages/db/dist/bootstrap-uat.js'",
+    ]);
     assert.equal(config.deploy.healthcheckPath, '/health');
   });
 
@@ -38,6 +40,8 @@ describe('Railway deployment packaging', () => {
       assert.match(dockerfile, new RegExp(`ARG ${key}`));
       assert.match(dockerfile, new RegExp(`ENV ${key}=`));
     }
+    assert.match(dockerfile, /COPY packages\/shared packages\/shared/);
+    assert.match(dockerfile, /COPY tsconfig\.base\.json/);
     assert.match(dockerfile, /scripts\/serve-static\.mjs/);
   });
 
