@@ -31,6 +31,8 @@ Keep `rwcar-indexer` at exactly one replica because it owns one keeper transacti
 
 The same worker refreshes the already-approved RWRN01 valuation every ten minutes. It verifies both signers against the live oracle and refuses to change the configured price, settlement token, or canonical evidence hash. This co-located signer arrangement is restricted to Monad UAT; production must use independently operated or HSM-backed signing services.
 
+The API also pins the deployed settlement A-Token runtime hash. If Cleanverse rotates the off-chain deposit-token list, the exact deployed aUSDC may remain usable only when its bytecode still matches that reviewed hash, its live token policy is unpaused, the wallet has an active A-Pass, and the Cleanverse on-chain policy pool returns eligible. A registry miss alone never bypasses those on-chain checks.
+
 ## 3. Select each config file
 
 In each application service settings, set the config-as-code file path:

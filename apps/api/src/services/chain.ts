@@ -254,6 +254,7 @@ export interface ChainService {
   assetEnabled(registry: Address, asset: Address): Promise<boolean>;
   tokenDecimals(token: Address): Promise<number>;
   tokenPolicyState(token: Address): Promise<{ policy: Address; paused: boolean }>;
+  contractCodeHash(contract: Address): Promise<`0x${string}` | null>;
   blockNumber(): Promise<bigint>;
   blockTimestamp(blockNumber?: bigint): Promise<bigint>;
   vaultAvailable(vault: Address, account: Address): Promise<bigint>;
@@ -336,6 +337,10 @@ export function createChainService(config: ApiConfig): ChainService {
         address: policy, abi: atokenPolicyPauseAbi, functionName: 'isPaused', args: [token],
       });
       return { policy, paused };
+    },
+    async contractCodeHash(contract: Address) {
+      const code = await client.getCode({ address: contract });
+      return code && code !== '0x' ? keccak256(code) : null;
     },
     async blockNumber() {
       return client.getBlockNumber();

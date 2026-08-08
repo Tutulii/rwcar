@@ -62,6 +62,7 @@ export const ComplianceResultSchema = z.object({
   subGroup: z.string().nullable(),
   countries: z.array(z.string()),
   verificationCode: z.number().int().nullable(),
+  eligibilitySource: z.enum(['CLEANVERSE_API', 'ONCHAIN_POLICY_POOL']).nullable(),
   assetIssued: z.boolean(),
   assetPaused: z.boolean(),
   poolEligible: z.boolean().nullable(),
