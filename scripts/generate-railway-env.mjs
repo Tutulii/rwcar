@@ -70,6 +70,14 @@ if (!Array.isArray(deployment.indexerSources) || deployment.indexerSources.lengt
 }
 const keeperKey = requiredString(roles.privateKeys?.keeper, 'keeper private key');
 if (!/^0x[a-fA-F0-9]{64}$/.test(keeperKey)) throw new Error('Keeper private key is malformed');
+const oracleSigner1Key = requiredString(roles.privateKeys?.oracleSigner1, 'oracle signer 1 private key');
+const oracleSigner2Key = requiredString(roles.privateKeys?.oracleSigner2, 'oracle signer 2 private key');
+if (!/^0x[a-fA-F0-9]{64}$/.test(oracleSigner1Key) || !/^0x[a-fA-F0-9]{64}$/.test(oracleSigner2Key)) {
+  throw new Error('Oracle signer private key is malformed');
+}
+if (oracleSigner1Key.toLowerCase() === oracleSigner2Key.toLowerCase()) throw new Error('Oracle signer keys must be distinct');
+const oracleEvidenceHash = requiredString(v1.valuation?.evidenceHash, 'oracle evidence hash');
+if (!/^0x[a-fA-F0-9]{64}$/.test(oracleEvidenceHash)) throw new Error('Oracle evidence hash is malformed');
 const trustedManifest = { ...deployment.frontendTrustedManifestDraft, status: 'ACTIVE' };
 const databaseReference = '${{Postgres.DATABASE_URL}}';
 const apiDomain = 'https://${{rwcar-api.RAILWAY_PUBLIC_DOMAIN}}';
@@ -141,6 +149,13 @@ const indexer = writeEnvironment('railway-indexer.env', {
   V2_AUTOMATION_MAX_CHECKPOINT_LAG: '100',
   V2_SETTLEMENT_TOKEN_ADDRESS: deployment.externalContracts.settlementToken,
   V2_DEPLOYMENTS_JSON: JSON.stringify(deployment.indexerSources),
+  V2_ORACLE_HEARTBEAT_ENABLED: 'true',
+  V2_ORACLE_HEARTBEAT_INTERVAL_MS: '600000',
+  V2_ORACLE_HEARTBEAT_VALIDITY_SECONDS: '86400',
+  V2_ORACLE_HEARTBEAT_PRICE_E18: '1000000000000000000',
+  V2_ORACLE_HEARTBEAT_EVIDENCE_HASH: oracleEvidenceHash,
+  V2_ORACLE_SIGNER_1_PRIVATE_KEY: oracleSigner1Key,
+  V2_ORACLE_SIGNER_2_PRIVATE_KEY: oracleSigner2Key,
 });
 
 const web = writeEnvironment('railway-web.env', {

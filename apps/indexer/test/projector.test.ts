@@ -4,6 +4,7 @@ import { repoMarketV2Abi } from '@rwcar/shared';
 import { decodeEventLog, encodeAbiParameters, encodeEventTopics, keccak256, stringToHex } from 'viem';
 import { loadConfig, parseV2DeploymentSources } from '../src/config.js';
 import { keeperCheckpointState, keeperRetryKey } from '../src/keeper.js';
+import { resolveOracleHeartbeatTargets, shouldPublishOracleHeartbeat } from '../src/oracle-heartbeat.js';
 import { jsonSafe } from '../src/projector.js';
 import {
   automationRetryDelayMs,
@@ -43,6 +44,8 @@ describe('indexer serialization', () => {
     assert.equal(config.V1_INDEXER_ENABLED, true);
     assert.equal(config.V1_KEEPER_ENABLED, true);
     assert.equal(config.V2_AUTOMATION_MAX_CHECKPOINT_LAG, 100n);
+    assert.equal(config.V2_ORACLE_HEARTBEAT_ENABLED, false);
+    assert.equal(config.V2_ORACLE_HEARTBEAT_INTERVAL_MS, 600_000);
   });
 
   it('supports a V2-only low-overhead runtime without weakening V2 automation', () => {
@@ -69,6 +72,53 @@ describe('indexer serialization', () => {
       loadConfig({ ...requiredConfig, KEEPER_PRIVATE_KEY: `0x${'1'.repeat(64)}` }).KEEPER_POLL_MS,
       10_000,
     );
+  });
+
+  it('requires a complete, distinct two-signer configuration for an enabled oracle heartbeat', () => {
+    const base = {
+      ...requiredConfig,
+      KEEPER_PRIVATE_KEY: `0x${'1'.repeat(64)}`,
+      V2_SETTLEMENT_TOKEN_ADDRESS: '0x0000000000000000000000000000000000000010',
+      V2_ORACLE_HEARTBEAT_ENABLED: 'true',
+      V2_ORACLE_HEARTBEAT_PRICE_E18: '1000000000000000000',
+      V2_ORACLE_HEARTBEAT_EVIDENCE_HASH: `0x${'ab'.repeat(32)}`,
+      V2_ORACLE_SIGNER_1_PRIVATE_KEY: `0x${'2'.repeat(64)}`,
+      V2_ORACLE_SIGNER_2_PRIVATE_KEY: `0x${'3'.repeat(64)}`,
+    };
+    assert.equal(loadConfig(base).V2_ORACLE_HEARTBEAT_ENABLED, true);
+    assert.throws(() => loadConfig({ ...base, V2_ORACLE_SIGNER_2_PRIVATE_KEY: base.V2_ORACLE_SIGNER_1_PRIVATE_KEY }));
+    assert.throws(() => loadConfig({ ...base, V2_ORACLE_HEARTBEAT_INTERVAL_MS: '299999' }));
+    assert.throws(() => loadConfig({ ...base, V2_ORACLE_HEARTBEAT_EVIDENCE_HASH: undefined }));
+  });
+
+  it('publishes oracle heartbeats only at the configured boundary', () => {
+    assert.equal(shouldPublishOracleHeartbeat(1_000n, 1_599n, 600n), false);
+    assert.equal(shouldPublishOracleHeartbeat(1_000n, 1_600n, 600n), true);
+    assert.equal(shouldPublishOracleHeartbeat(0n, 1n, 600n), true);
+  });
+
+  it('resolves one oracle and one shared collateral asset from deployment metadata', () => {
+    const sources = parseV2DeploymentSources(loadConfig({
+      ...requiredConfig,
+      V2_DEPLOYMENTS_JSON: JSON.stringify([
+        { module: 'REPO_MARKET', address: '0x0000000000000000000000000000000000000001', deploymentBlock: 100 },
+        { module: 'VALUATION_ORACLE', address: '0x0000000000000000000000000000000000000002', deploymentBlock: 100 },
+        {
+          module: 'COLLATERAL_VAULT',
+          address: '0x0000000000000000000000000000000000000003',
+          deploymentBlock: 100,
+          metadata: {
+            controllerAddress: '0x0000000000000000000000000000000000000001',
+            asset: '0x0000000000000000000000000000000000000004',
+          },
+        },
+      ]),
+    }));
+    assert.deepEqual(resolveOracleHeartbeatTargets(sources), {
+      oracle: '0x0000000000000000000000000000000000000002',
+      asset: '0x0000000000000000000000000000000000000004',
+    });
+    assert.throws(() => resolveOracleHeartbeatTargets(sources.filter((source) => source.module !== 'VALUATION_ORACLE')));
   });
 
   it('namespaces expiry and default retry cooldowns independently', () => {

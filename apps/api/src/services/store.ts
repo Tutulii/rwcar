@@ -283,7 +283,7 @@ export class StoreService {
   }
 
   async systemStatus() {
-    const [checkpoints, deployments, pendingJobs] = await Promise.all([
+    const [checkpoints, deployments, pendingJobs, latestOracleValuations] = await Promise.all([
       this.db.select().from(indexerCheckpoints).orderBy(indexerCheckpoints.consumer),
       this.listDeployments(),
       this.db.select({
@@ -291,8 +291,25 @@ export class StoreService {
         status: automationJobs.status,
         count: sql<number>`count(*)::int`,
       }).from(automationJobs).groupBy(automationJobs.action, automationJobs.status),
+      this.db.select({
+        oracleAddress: oracleValuations.oracleAddress,
+        assetAddress: oracleValuations.assetAddress,
+        priceE18: oracleValuations.priceE18,
+        nonce: oracleValuations.nonce,
+        observedAt: oracleValuations.observedAt,
+        validUntil: oracleValuations.validUntil,
+        digest: oracleValuations.digest,
+        txHash: oracleValuations.txHash,
+        blockNumber: oracleValuations.blockNumber,
+      }).from(oracleValuations).where(eq(oracleValuations.invalidated, false))
+        .orderBy(desc(oracleValuations.blockNumber)).limit(1),
     ]);
-    return { checkpoints, deployments, automationJobs: pendingJobs };
+    return {
+      checkpoints,
+      deployments,
+      automationJobs: pendingJobs,
+      latestOracleValuation: latestOracleValuations[0] ?? null,
+    };
   }
 
   async transactionIndexStatus(txHash: string) {
