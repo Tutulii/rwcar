@@ -275,6 +275,14 @@
       "blockNumber": "51830021",
       "amountMON": "0.25",
       "finalBalanceMON": "0.25"
+    },
+    "marginCustodyReady": {
+      "txHash": "0x3d3daa8f2b2914bd9330388bb1782778d93817a27a1c58512798be4c409fd377",
+      "blockNumber": "51831692"
+    },
+    "marginEntryUnpaused": {
+      "txHash": "0xa3900c0795713dc34f58cedd94d1e1c2415fda23ae2cd1ccb6a0058656088038",
+      "blockNumber": "51831714"
     }
   },
   "deployedCode": {
@@ -423,14 +431,14 @@
     "RISK_MANAGER_V2_ADDRESS": "0xd69bafc761d0edd58b2f27628d38e0fbda3955a4",
     "V2_SETTLEMENT_TOKEN_ADDRESS": "0xaC0893567D43C3E7e6e35a72803df05416C1f20D",
     "V2_ALLOWED_DURATIONS": "300",
-    "V2_MARGIN_ENABLED": false,
+    "V2_MARGIN_ENABLED": true,
     "V2_REPO_POLICY_POOL_REGISTERED": true,
     "V2_FEE_TREASURY_AUSDC_ELIGIBLE": true,
     "V2_SETTLEMENT_ESCROW_AUSDC_READY": true,
-    "V2_MARGIN_POLICY_POOL_REGISTERED": false,
-    "V2_MARGIN_VAULT_CUSTODY_READY": false,
-    "V2_MARGIN_ESCROW_AUSDC_READY": false,
-    "V2_MARGIN_TREASURY_AUSDC_ELIGIBLE": false,
+    "V2_MARGIN_POLICY_POOL_REGISTERED": true,
+    "V2_MARGIN_VAULT_CUSTODY_READY": true,
+    "V2_MARGIN_ESCROW_AUSDC_READY": true,
+    "V2_MARGIN_TREASURY_AUSDC_ELIGIBLE": true,
     "V2_DEPLOYMENTS_JSON": "[{\"module\":\"REPO_MARKET\",\"address\":\"0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379\",\"deploymentBlock\":\"51825470\",\"metadata\":{\"engine\":\"isolated\"}},{\"module\":\"COLLATERAL_VAULT\",\"address\":\"0x5933Bff2a277df198a0eBEC0e7B98A125e57e55c\",\"deploymentBlock\":\"51825490\",\"metadata\":{\"engine\":\"isolated\",\"controllerAddress\":\"0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379\",\"asset\":\"0x7A33e03B10268FFdB50e562721B092BC0Cb793F9\"}},{\"module\":\"SETTLEMENT_ESCROW\",\"address\":\"0xa67f46666F2126A11250B4E291C44970E519731e\",\"deploymentBlock\":\"51825470\",\"metadata\":{\"engine\":\"isolated\",\"controllerAddress\":\"0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379\",\"policyPool\":\"0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379\"}},{\"module\":\"DUTCH_AUCTION\",\"address\":\"0x86b7B808e9f26e713Ef78ae4E1Dd25cC117ed7bA\",\"deploymentBlock\":\"51825470\",\"metadata\":{\"engine\":\"isolated\",\"controllerAddress\":\"0xbaf9bf0c0b03f5a7e25a3ce418d068f5b80f7379\"}},{\"module\":\"VALUATION_ORACLE\",\"address\":\"0xdec0a543253503b5d3dd8883102e4b95a3c5bec0\",\"deploymentBlock\":\"51807999\",\"metadata\":{}},{\"module\":\"RISK_MANAGER\",\"address\":\"0xd69bafc761d0edd58b2f27628d38e0fbda3955a4\",\"deploymentBlock\":\"51825448\",\"metadata\":{}},{\"module\":\"MARGIN_ENGINE\",\"address\":\"0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2\",\"deploymentBlock\":\"51825510\",\"metadata\":{\"engine\":\"cross-margin\",\"asset\":\"0x7A33e03B10268FFdB50e562721B092BC0Cb793F9\"}},{\"module\":\"COLLATERAL_VAULT\",\"address\":\"0xAa7eAae9D03207157CfB51b885f24AD5b5205436\",\"deploymentBlock\":\"51825510\",\"metadata\":{\"engine\":\"cross-margin\",\"controllerAddress\":\"0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2\",\"asset\":\"0x7A33e03B10268FFdB50e562721B092BC0Cb793F9\"}},{\"module\":\"SETTLEMENT_ESCROW\",\"address\":\"0xdbff3ACffDafd7171c9b5a4e72418Dd198151E7E\",\"deploymentBlock\":\"51825510\",\"metadata\":{\"engine\":\"cross-margin\",\"controllerAddress\":\"0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2\",\"policyPool\":\"0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2\"}},{\"module\":\"DUTCH_AUCTION\",\"address\":\"0x6472D15B7dB88Ce24966c05Abd54c3D6567b4316\",\"deploymentBlock\":\"51825510\",\"metadata\":{\"engine\":\"cross-margin\",\"controllerAddress\":\"0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2\"}}]"
   },
   "ownership": {
@@ -569,9 +577,9 @@
   },
   "readiness": {
     "marketAssetVaultReadyTransaction": "0x16e5a3cdf82a077f68d3513b6e040e57097dfefc16b31feeb119ace7572ed7eb",
-    "marginCustodyReadyTransaction": null,
+    "marginCustodyReadyTransaction": "0x3d3daa8f2b2914bd9330388bb1782778d93817a27a1c58512798be4c409fd377",
     "isolatedEntryUnpausedTransaction": "0x462ba1e0888e3373bc78ba322e9c5e8fdc544b171965976de7742687a49cf298",
-    "marginEntryUnpausedTransaction": null,
+    "marginEntryUnpausedTransaction": "0xa3900c0795713dc34f58cedd94d1e1c2415fda23ae2cd1ccb6a0058656088038",
     "partialFillsEnabled": false,
     "earlyRepurchaseEnabled": false,
     "dutchAuctionsEnabled": false,

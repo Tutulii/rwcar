@@ -1,0 +1,50 @@
+{
+  "sourceRevision": "b8e27281c1d5c424df454caf3b842f25d675a2c5",
+  "status": "MARGIN_SMOKE_WINDOW_OPEN",
+  "chainId": 10143,
+  "marginEngine": "0x47ebbfa857731e6fd7a40c082eaa80c57138e9a2",
+  "smokeParticipants": {
+    "seller": "0x911F99f424D47F08a15fcC771e94dcc2f7252B02",
+    "lender": "0xF7100Bcc9B352f18b80018D7708177C3C04a128D"
+  },
+  "marginPoolRegistered": true,
+  "custodyRegistration": {
+    "marginVault": true,
+    "marginSettlementEscrow": true
+  },
+  "apassChecks": {
+    "sellerCva": 4,
+    "sellerSettlement": 4,
+    "lenderCva": 4,
+    "lenderSettlement": 4,
+    "marginVault": 4,
+    "marginEscrow": 4,
+    "feeTreasury": 4
+  },
+  "riskEnabled": true,
+  "oraclePriceE18": "1000000000000000000",
+  "preState": {
+    "marginPaused": true,
+    "marginReady": false,
+    "vaultSolvent": true,
+    "vaultAccounted": "0",
+    "vaultTokenBalance": "0",
+    "escrowClaims": "0",
+    "escrowTokenBalance": "0"
+  },
+  "completedAt": "2026-08-08T02:15:08.806Z",
+  "transactions": {
+    "marginCustodyReady": {
+      "txHash": "0x3d3daa8f2b2914bd9330388bb1782778d93817a27a1c58512798be4c409fd377",
+      "blockNumber": "51831692"
+    },
+    "marginEntryUnpaused": {
+      "txHash": "0xa3900c0795713dc34f58cedd94d1e1c2415fda23ae2cd1ccb6a0058656088038",
+      "blockNumber": "51831714"
+    }
+  },
+  "postState": {
+    "marginPaused": false,
+    "marginReady": true
+  }
+}
