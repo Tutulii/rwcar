@@ -20,12 +20,15 @@
     "build": "npm run build -w @rwcar/shared && npm run build -w @rwcar/db && npm run build -w @rwcar/contracts && npm run build -w @rwcar/api && npm run build -w @rwcar/indexer && npm run build:web",
     "build:web": "vite build",
     "typecheck": "npm run build -w @rwcar/shared && npm run build -w @rwcar/db && npm run typecheck --workspaces --if-present",
-    "test": "npm run test -w @rwcar/contracts && npm run test -w @rwcar/api && npm run test -w @rwcar/indexer && npm run test:web-security",
+    "test": "npm run test -w @rwcar/contracts && npm run test -w @rwcar/db && npm run test -w @rwcar/api && npm run test -w @rwcar/indexer && npm run test:web-security && npm run test:deployment-packaging",
     "test:web-security": "node --import tsx --test test/v2-security.test.mjs",
+    "test:deployment-packaging": "node --test test/deployment-packaging.test.mjs",
     "test:contracts": "npm run test -w @rwcar/contracts",
     "deploy:uat:v2": "npm run deploy:uat:v2 -w @rwcar/contracts",
     "db:generate": "npm run db:generate -w @rwcar/db",
     "db:migrate": "npm run db:migrate -w @rwcar/db",
+    "db:bootstrap:uat": "npm run db:bootstrap:uat -w @rwcar/db",
+    "prepare:railway": "node scripts/generate-railway-env.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

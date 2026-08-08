@@ -57,5 +57,8 @@ const ConfigSchema = z.object({
 export type ApiConfig = z.infer<typeof ConfigSchema>;
 
 export function loadConfig(input: NodeJS.ProcessEnv = process.env): ApiConfig {
-  return ConfigSchema.parse(input);
+  const normalized = input.API_PORT === undefined && input.PORT !== undefined
+    ? { ...input, API_PORT: input.PORT }
+    : input;
+  return ConfigSchema.parse(normalized);
 }

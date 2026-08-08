@@ -1,0 +1,28 @@
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/db/package.json packages/db/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY apps/api/package.json apps/api/package.json
+COPY apps/indexer/package.json apps/indexer/package.json
+RUN npm ci
+COPY index.html ./
+COPY src src
+ARG VITE_PRIVY_APP_ID
+ARG VITE_API_URL
+ARG VITE_TRUSTED_V2_MANIFEST_JSON
+ENV VITE_PRIVY_APP_ID=${VITE_PRIVY_APP_ID}
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_TRUSTED_V2_MANIFEST_JSON=${VITE_TRUSTED_V2_MANIFEST_JSON}
+RUN test -n "$VITE_PRIVY_APP_ID" && test -n "$VITE_API_URL" && test -n "$VITE_TRUSTED_V2_MANIFEST_JSON"
+RUN npm run build:web
+
+FROM node:22-bookworm-slim
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app/dist dist
+COPY scripts/serve-static.mjs scripts/serve-static.mjs
+USER node
+EXPOSE 5173
+CMD ["node", "scripts/serve-static.mjs"]

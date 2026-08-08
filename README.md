@@ -1,5 +1,7 @@
 # RWCAR
 
+Railway packaging and the exact deployment order are documented in [docs/RAILWAY_DEPLOYMENT.md](docs/RAILWAY_DEPLOYMENT.md). Generate protected service variables with `npm run prepare:railway`; generated files remain ignored under `.secrets/`.
+
 Institutional RWA repo infrastructure using issued Cleanverse CVAs, verified CVI participants, Monad Testnet atomic settlement, Privy authentication, a Fastify API, PostgreSQL projections, and a reorg-aware indexer.
 
 Start with [Architecture](docs/ARCHITECTURE.md), [V2 protocol specification](docs/V2_PROTOCOL_SPEC.md), [API](docs/API.md), [Threat model](docs/THREAT_MODEL.md), and [Runbook](docs/RUNBOOK.md). Cleanverse-specific persistent notes are in [CVA context](docs/CLEANVERSE_CVA_CONTEXT.md).

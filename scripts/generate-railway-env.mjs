@@ -1,0 +1,155 @@
+import { createDecipheriv, randomBytes } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const secretsDirectory = join(root, '.secrets');
+const secretPath = (name) => join(secretsDirectory, name);
+const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
+
+function requirePrivate(path) {
+  if (!existsSync(path)) throw new Error(`Required protected file is missing: ${path}`);
+  if ((statSync(path).mode & 0o077) !== 0) throw new Error(`Protected file must have mode 0600: ${path}`);
+  return path;
+}
+
+function requiredString(value, label) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} is required`);
+  if (/\r|\n|\0/.test(value)) throw new Error(`${label} contains an invalid control character`);
+  return value.trim();
+}
+
+function writeEnvironment(name, values) {
+  const path = secretPath(name);
+  const entries = Object.entries(values).map(([key, raw]) => {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(key)) throw new Error(`Invalid environment key: ${key}`);
+    return `${key}=${requiredString(String(raw), key)}`;
+  });
+  writeFileSync(path, `${entries.join('\n')}\n`, { encoding: 'utf8', mode: 0o600 });
+  chmodSync(path, 0o600);
+  return { path, count: entries.length };
+}
+
+function decryptRoleBundle() {
+  const encrypted = readJson(requirePrivate(secretPath('v2-uat-roles.enc.json')));
+  const wrappingKey = Buffer.from(readFileSync(requirePrivate(secretPath('v2-uat-roles.key')), 'utf8').trim(), 'base64');
+  if (wrappingKey.length !== 32) throw new Error('V2 role wrapping key must decode to 32 bytes');
+  const decipher = createDecipheriv('aes-256-gcm', wrappingKey, Buffer.from(encrypted.iv, 'base64'));
+  decipher.setAuthTag(Buffer.from(encrypted.authTag, 'base64'));
+  return JSON.parse(Buffer.concat([
+    decipher.update(Buffer.from(encrypted.ciphertext, 'base64')),
+    decipher.final(),
+  ]).toString('utf8'));
+}
+
+function adminKey() {
+  const path = secretPath('railway-admin.json');
+  if (existsSync(path)) return requiredString(readJson(requirePrivate(path)).adminApiKey, 'adminApiKey');
+  const value = randomBytes(32).toString('base64url');
+  writeFileSync(path, `${JSON.stringify({ adminApiKey: value }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  chmodSync(path, 0o600);
+  return value;
+}
+
+mkdirSync(secretsDirectory, { recursive: true, mode: 0o700 });
+const deployment = readJson(join(root, 'deployments', 'monad-testnet-v2-hackathon.json'));
+const v1 = readJson(join(root, 'deployments', 'monad-testnet.json'));
+const cleanverse = readJson(requirePrivate(secretPath('cleanverse-uat.json')));
+const privy = readJson(requirePrivate(secretPath('privy-uat.json')));
+const rpc = readJson(requirePrivate(secretPath('monad-rpc.json')));
+const r2 = readJson(requirePrivate(secretPath('r2-uat.json')));
+const roles = decryptRoleBundle();
+
+if (deployment.deploymentProfile !== 'MONAD_HACKATHON_UAT_ZERO_DELAY') throw new Error('Unexpected deployment profile');
+if (deployment.network?.chainId !== 10_143 && deployment.chainId !== 10_143) {
+  throw new Error('Deployment manifest is not Monad Testnet');
+}
+if (!Array.isArray(deployment.indexerSources) || deployment.indexerSources.length === 0) {
+  throw new Error('Deployment manifest has no V2 indexer sources');
+}
+const keeperKey = requiredString(roles.privateKeys?.keeper, 'keeper private key');
+if (!/^0x[a-fA-F0-9]{64}$/.test(keeperKey)) throw new Error('Keeper private key is malformed');
+const trustedManifest = { ...deployment.frontendTrustedManifestDraft, status: 'ACTIVE' };
+const databaseReference = '${{Postgres.DATABASE_URL}}';
+const apiDomain = 'https://${{rwcar-api.RAILWAY_PUBLIC_DOMAIN}}';
+const webDomain = 'https://${{rwcar-web.RAILWAY_PUBLIC_DOMAIN}}';
+const service = deployment.serviceConfiguration;
+
+const api = writeEnvironment('railway-api.env', {
+  NODE_ENV: 'production',
+  API_HOST: '0.0.0.0',
+  LOG_LEVEL: 'info',
+  DATABASE_URL: databaseReference,
+  DATABASE_SSL_MODE: 'disable',
+  CORS_ORIGINS: webDomain,
+  MONAD_RPC_URL: rpc.rpcUrl,
+  REPO_MARKET_ADDRESS: v1.repoMarket,
+  ASSET_REGISTRY_ADDRESS: deployment.contracts.assetRegistry,
+  REPO_MARKET_V2_ADDRESS: deployment.contracts.repoMarket,
+  PROTOCOL_MODULE_FACTORY_V2_ADDRESS: deployment.contracts.moduleFactory,
+  COLLATERAL_VAULT_V2_ADDRESS: deployment.contracts.marketVault,
+  SETTLEMENT_ESCROW_V2_ADDRESS: deployment.contracts.marketSettlementEscrow,
+  DUTCH_AUCTION_V2_ADDRESS: deployment.contracts.marketAuction,
+  MARGIN_ENGINE_V2_ADDRESS: deployment.contracts.marginEngine,
+  VALUATION_ORACLE_V2_ADDRESS: deployment.contracts.valuationOracle,
+  RISK_MANAGER_V2_ADDRESS: deployment.contracts.riskManager,
+  FEE_TREASURY_ADDRESS: deployment.roles.feeTreasury,
+  V2_SETTLEMENT_TOKEN_ADDRESS: deployment.externalContracts.settlementToken,
+  COMPLIANCE_VALIDATOR_ADDRESS: deployment.externalContracts.complianceValidator,
+  V2_QUOTE_TTL_SECONDS: '30',
+  V2_ALLOWED_DURATIONS: deployment.parameters.allowedDurations.join(','),
+  V2_MARGIN_ENABLED: String(service.V2_MARGIN_ENABLED === true),
+  V2_REPO_POLICY_POOL_REGISTERED: String(service.V2_REPO_POLICY_POOL_REGISTERED === true),
+  V2_FEE_TREASURY_AUSDC_ELIGIBLE: String(service.V2_FEE_TREASURY_AUSDC_ELIGIBLE === true),
+  V2_SETTLEMENT_ESCROW_AUSDC_READY: String(service.V2_SETTLEMENT_ESCROW_AUSDC_READY === true),
+  V2_MARGIN_POLICY_POOL_REGISTERED: String(service.V2_MARGIN_POLICY_POOL_REGISTERED === true),
+  V2_MARGIN_VAULT_CUSTODY_READY: String(service.V2_MARGIN_VAULT_CUSTODY_READY === true),
+  V2_MARGIN_ESCROW_AUSDC_READY: String(service.V2_MARGIN_ESCROW_AUSDC_READY === true),
+  V2_MARGIN_TREASURY_AUSDC_ELIGIBLE: String(service.V2_MARGIN_TREASURY_AUSDC_ELIGIBLE === true),
+  CLEANVERSE_BASE_URL: cleanverse.baseUrl,
+  CLEANVERSE_API_ID: cleanverse.apiId,
+  CLEANVERSE_API_KEY: cleanverse.apiKey,
+  PRIVY_APP_ID: privy.appId,
+  PRIVY_APP_SECRET: privy.appSecret,
+  ADMIN_API_KEY: adminKey(),
+  VALUATION_SIGNERS: deployment.roles.oracleSigners.join(','),
+  INDEXER_CONFIRMATIONS: '3',
+  COMPLIANCE_CACHE_SECONDS: '30',
+  S3_ENDPOINT: r2.endpoint,
+  S3_REGION: r2.region || 'auto',
+  S3_BUCKET: r2.bucket,
+  S3_ACCESS_KEY_ID: r2.accessKeyId,
+  S3_SECRET_ACCESS_KEY: r2.secretAccessKey,
+});
+
+const indexer = writeEnvironment('railway-indexer.env', {
+  NODE_ENV: 'production',
+  DATABASE_URL: databaseReference,
+  DATABASE_SSL_MODE: 'disable',
+  MONAD_RPC_URL: rpc.rpcUrl,
+  REPO_MARKET_ADDRESS: v1.repoMarket,
+  REPO_MARKET_DEPLOYMENT_BLOCK: String(v1.deploymentBlock),
+  V1_INDEXER_ENABLED: 'false',
+  V1_KEEPER_ENABLED: 'false',
+  INDEXER_CONFIRMATIONS: '3',
+  INDEXER_BATCH_SIZE: String(rpc.maxLogRange || 100),
+  INDEXER_POLL_MS: '5000',
+  INDEXER_CATCHUP_DELAY_MS: '250',
+  KEEPER_PRIVATE_KEY: keeperKey,
+  KEEPER_POLL_MS: '10000',
+  V2_AUTOMATION_MAX_CHECKPOINT_LAG: '100',
+  V2_SETTLEMENT_TOKEN_ADDRESS: deployment.externalContracts.settlementToken,
+  V2_DEPLOYMENTS_JSON: JSON.stringify(deployment.indexerSources),
+});
+
+const web = writeEnvironment('railway-web.env', {
+  VITE_PRIVY_APP_ID: privy.appId,
+  VITE_API_URL: apiDomain,
+  VITE_TRUSTED_V2_MANIFEST_JSON: JSON.stringify(trustedManifest),
+});
+
+for (const result of [api, indexer, web]) {
+  console.log(`Prepared ${result.count} Railway variables in ${result.path}`);
+}
+console.log('No secret values were printed. Keep every generated file private and paste it only into its matching Railway service.');

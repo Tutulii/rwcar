@@ -4,8 +4,8 @@ import { extname, join, resolve, sep } from 'node:path';
 
 const root = resolve(process.env.WEB_ROOT?.trim() || join(process.cwd(), 'dist'));
 const host = process.env.WEB_HOST?.trim() || '0.0.0.0';
-const port = Number(process.env.WEB_PORT?.trim() || 5173);
-if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('WEB_PORT must be a valid TCP port');
+const port = Number(process.env.WEB_PORT?.trim() || process.env.PORT?.trim() || 5173);
+if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('WEB_PORT or PORT must be a valid TCP port');
 if (!existsSync(join(root, 'index.html'))) throw new Error(`Built frontend is missing at ${root}; run npm run build:v2:local`);
 
 const contentTypes = new Map([
@@ -26,6 +26,14 @@ const contentTypes = new Map([
 const server = createServer((request, response) => {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     response.writeHead(405, { allow: 'GET, HEAD' }).end();
+    return;
+  }
+  if ((request.url || '').split('?', 1)[0] === '/health') {
+    response.writeHead(200, {
+      'cache-control': 'no-store',
+      'content-type': 'application/json; charset=utf-8',
+      'x-content-type-options': 'nosniff',
+    }).end(request.method === 'HEAD' ? undefined : JSON.stringify({ status: 'ok' }));
     return;
   }
   let pathname;
