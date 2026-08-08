@@ -1,10 +1,15 @@
 {
   "sourceRevision": "718491a08bd431d1d3ba9a8960fcbd16e561844f",
-  "status": "CREATED_UNFUNDED",
+  "status": "FUNDED_READY",
   "environment": "monad-testnet-v2-uat",
   "role": "keeper",
   "permissionlessOnly": true,
   "protocolPrivileges": [],
   "address": "0x03AE016b746Ad7aC560Cd6f2a7F2d858A93edaC3",
-  "createdAt": "2026-08-08T02:05:59.917Z"
+  "createdAt": "2026-08-08T02:05:59.917Z",
+  "funding": {
+    "transactionHash": "0x5e5aaef63f5d86ff8876eeedf340ae37b0774c5e7235320568cbdcf1ad20bb53",
+    "blockNumber": "51830021",
+    "balanceMON": "0.25"
+  }
 }

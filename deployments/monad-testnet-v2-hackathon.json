@@ -263,6 +263,18 @@
     "isolatedEntryUnpaused": {
       "txHash": "0x462ba1e0888e3373bc78ba322e9c5e8fdc544b171965976de7742687a49cf298",
       "blockNumber": "51827768"
+    },
+    "fundPendingOwner": {
+      "txHash": "0xb59c78bcc3d1607185fb68a48a32c669ff08a5e9c66d0e3368ba14c24bc62ecf",
+      "blockNumber": "51830003",
+      "amountMON": "0.067435056",
+      "finalBalanceMON": "1"
+    },
+    "fundKeeper": {
+      "txHash": "0x5e5aaef63f5d86ff8876eeedf340ae37b0774c5e7235320568cbdcf1ad20bb53",
+      "blockNumber": "51830021",
+      "amountMON": "0.25",
+      "finalBalanceMON": "0.25"
     }
   },
   "deployedCode": {
@@ -663,5 +675,30 @@
     "Submit a fresh 2-of-3 signed valuation and execute real deposit/withdraw/escrow claim smoke proofs.",
     "Only then set readiness true and unpause isolated entry; enable cross-margin last.",
     "After every activation proof passes, review frontendTrustedManifestDraft, change only its status to ACTIVE, and provide its compact JSON as VITE_TRUSTED_V2_MANIFEST_JSON at frontend build time."
-  ]
+  ],
+  "operationalRoleFunding": {
+    "source": "0xf24f1258c93461087c1BF87E1A08E60b1B91a77c",
+    "sourceReserveMON": "1",
+    "finalSourceBalanceMON": "3.04898977",
+    "transactions": {
+      "pendingOwner": {
+        "txHash": "0xb59c78bcc3d1607185fb68a48a32c669ff08a5e9c66d0e3368ba14c24bc62ecf",
+        "blockNumber": "51830003",
+        "amountMON": "0.067435056",
+        "finalBalanceMON": "1"
+      },
+      "pauseGuardian": {
+        "alreadyFunded": true
+      },
+      "feeTreasury": {
+        "alreadyFunded": true
+      },
+      "keeper": {
+        "txHash": "0x5e5aaef63f5d86ff8876eeedf340ae37b0774c5e7235320568cbdcf1ad20bb53",
+        "blockNumber": "51830021",
+        "amountMON": "0.25",
+        "finalBalanceMON": "0.25"
+      }
+    }
+  }
 }
