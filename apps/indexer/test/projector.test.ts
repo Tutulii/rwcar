@@ -29,7 +29,23 @@ describe('indexer serialization', () => {
   });
 
   it('defaults log scans to Monad-compatible 100-block batches', () => {
-    assert.equal(loadConfig(requiredConfig).INDEXER_BATCH_SIZE, 100n);
+    const config = loadConfig(requiredConfig);
+    assert.equal(config.INDEXER_BATCH_SIZE, 100n);
+    assert.equal(config.INDEXER_CATCHUP_DELAY_MS, 100);
+    assert.equal(config.V1_INDEXER_ENABLED, true);
+    assert.equal(config.V1_KEEPER_ENABLED, true);
+  });
+
+  it('supports a V2-only low-overhead runtime without weakening V2 automation', () => {
+    const config = loadConfig({
+      ...requiredConfig,
+      V1_INDEXER_ENABLED: 'false',
+      V1_KEEPER_ENABLED: 'false',
+      INDEXER_CATCHUP_DELAY_MS: '250',
+    });
+    assert.equal(config.V1_INDEXER_ENABLED, false);
+    assert.equal(config.V1_KEEPER_ENABLED, false);
+    assert.equal(config.INDEXER_CATCHUP_DELAY_MS, 250);
   });
 
   it('rejects log scan batches above the Monad RPC limit', () => {

@@ -8,8 +8,8 @@ import { createInterface } from 'node:readline/promises';
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const service = process.argv[2];
-if (!['api', 'indexer', 'web'].includes(service)) {
-  throw new Error('Usage: node scripts/local-v2-service.mjs <api|indexer|web>');
+if (!['api', 'indexer', 'web', 'build', 'stack'].includes(service)) {
+  throw new Error('Usage: node scripts/local-v2-service.mjs <api|indexer|web|build|stack>');
 }
 
 const parseEnv = (path) => Object.fromEntries(readFileSync(path, 'utf8')
@@ -75,6 +75,9 @@ const common = {
   INDEXER_CONFIRMATIONS: '3',
   INDEXER_BATCH_SIZE: '100',
   INDEXER_POLL_MS: '5000',
+  INDEXER_CATCHUP_DELAY_MS: '250',
+  V1_INDEXER_ENABLED: 'false',
+  V1_KEEPER_ENABLED: 'false',
 };
 
 const promptSecret = async () => {
@@ -94,55 +97,108 @@ const promptSecret = async () => {
   }
 };
 
-let command;
-let args;
-if (service === 'api') {
-  const privySecretPath = join(repositoryRoot, '.secrets', 'privy-uat.json');
-  const privySecret = existsSync(privySecretPath) ? JSON.parse(readFileSync(privySecretPath, 'utf8')) : {};
-  common.PRIVY_APP_ID = process.env.PRIVY_APP_ID?.trim()
-    || privySecret.appId
-    || rootEnv.VITE_PRIVY_APP_ID;
-  common.PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET?.trim()
-    || privySecret.appSecret
-    || await promptSecret();
-  common.API_HOST = '127.0.0.1';
-  common.API_PORT = '3001';
-  common.CORS_ORIGINS = 'http://127.0.0.1:5173,http://localhost:5173';
-  command = 'npm';
-  args = ['run', 'dev:api'];
-} else if (service === 'indexer') {
-  const encryptedBundle = JSON.parse(readFileSync(join(repositoryRoot, '.secrets', 'v2-uat-roles.enc.json'), 'utf8'));
-  const wrappingKey = Buffer.from(
-    readFileSync(join(repositoryRoot, '.secrets', 'v2-uat-roles.key'), 'utf8').trim(),
-    'base64',
-  );
-  const decipher = createDecipheriv('aes-256-gcm', wrappingKey, Buffer.from(encryptedBundle.iv, 'base64'));
-  decipher.setAuthTag(Buffer.from(encryptedBundle.authTag, 'base64'));
-  const roleBundle = JSON.parse(Buffer.concat([
-    decipher.update(Buffer.from(encryptedBundle.ciphertext, 'base64')),
-    decipher.final(),
-  ]).toString('utf8'));
-  if (!roleBundle.privateKeys.keeper) throw new Error('The permissionless UAT keeper has not been created');
-  common.KEEPER_PRIVATE_KEY = roleBundle.privateKeys.keeper;
-  command = 'npm';
-  args = ['run', 'dev:indexer'];
-} else {
-  const trustedManifest = { ...deployment.frontendTrustedManifestDraft, status: 'ACTIVE' };
-  common.VITE_PRIVY_APP_ID = rootEnv.VITE_PRIVY_APP_ID;
-  common.VITE_API_URL = 'http://127.0.0.1:3001';
-  common.VITE_TRUSTED_V2_MANIFEST_JSON = JSON.stringify(trustedManifest);
-  command = 'npm';
-  args = ['run', 'dev'];
+const environmentFor = async (target) => {
+  const environment = { ...common };
+  if (target === 'api') {
+    const privySecretPath = join(repositoryRoot, '.secrets', 'privy-uat.json');
+    const privySecret = existsSync(privySecretPath) ? JSON.parse(readFileSync(privySecretPath, 'utf8')) : {};
+    environment.PRIVY_APP_ID = process.env.PRIVY_APP_ID?.trim()
+      || privySecret.appId
+      || rootEnv.VITE_PRIVY_APP_ID;
+    environment.PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET?.trim()
+      || privySecret.appSecret
+      || await promptSecret();
+    environment.API_HOST = '127.0.0.1';
+    environment.API_PORT = '3001';
+    environment.CORS_ORIGINS = 'http://127.0.0.1:5173,http://localhost:5173';
+  } else if (target === 'indexer') {
+    const encryptedBundle = JSON.parse(readFileSync(join(repositoryRoot, '.secrets', 'v2-uat-roles.enc.json'), 'utf8'));
+    const wrappingKey = Buffer.from(
+      readFileSync(join(repositoryRoot, '.secrets', 'v2-uat-roles.key'), 'utf8').trim(),
+      'base64',
+    );
+    const decipher = createDecipheriv('aes-256-gcm', wrappingKey, Buffer.from(encryptedBundle.iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(encryptedBundle.authTag, 'base64'));
+    const roleBundle = JSON.parse(Buffer.concat([
+      decipher.update(Buffer.from(encryptedBundle.ciphertext, 'base64')),
+      decipher.final(),
+    ]).toString('utf8'));
+    if (!roleBundle.privateKeys.keeper) throw new Error('The permissionless UAT keeper has not been created');
+    environment.KEEPER_PRIVATE_KEY = roleBundle.privateKeys.keeper;
+  } else if (target === 'web') {
+    const trustedManifest = { ...deployment.frontendTrustedManifestDraft, status: 'ACTIVE' };
+    environment.VITE_PRIVY_APP_ID = rootEnv.VITE_PRIVY_APP_ID;
+    environment.VITE_API_URL = 'http://127.0.0.1:3001';
+    environment.VITE_TRUSTED_V2_MANIFEST_JSON = JSON.stringify(trustedManifest);
+    environment.WEB_ROOT = join(repositoryRoot, 'dist');
+    environment.WEB_HOST = '0.0.0.0';
+    environment.WEB_PORT = '5173';
+  } else throw new Error(`Unknown local service: ${target}`);
+  return environment;
+};
+
+if (service === 'build') {
+  const buildEnvironment = { ...common, NODE_ENV: 'production' };
+  for (const workspace of ['@rwcar/shared', '@rwcar/db', '@rwcar/api', '@rwcar/indexer']) {
+    execFileSync('npm', ['run', 'build', '-w', workspace], { cwd: repositoryRoot, env: buildEnvironment, stdio: 'inherit' });
+  }
+  execFileSync('npm', ['run', 'build:web'], {
+    cwd: repositoryRoot,
+    env: { ...await environmentFor('web'), NODE_ENV: 'production' },
+    stdio: 'inherit',
+  });
+  console.log('Lightweight V2 local build complete.');
+  process.exit(0);
 }
 
-const child = spawn(command, args, {
-  cwd: repositoryRoot,
-  env: common,
-  stdio: 'inherit',
-});
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.once(signal, () => child.kill(signal));
+if (service === 'stack') {
+  const definitions = [
+    { target: 'api', script: join(repositoryRoot, 'apps/api/dist/server.js') },
+    { target: 'indexer', script: join(repositoryRoot, 'apps/indexer/dist/index.js') },
+    { target: 'web', script: join(repositoryRoot, 'scripts/serve-static.mjs') },
+  ];
+  for (const definition of definitions) {
+    if (!existsSync(definition.script)) throw new Error(`Missing ${definition.script}; run npm run build:v2:local`);
+  }
+  const children = [];
+  for (const definition of definitions) {
+    const child = spawn(process.execPath, [definition.script], {
+      cwd: repositoryRoot,
+      env: { ...await environmentFor(definition.target), NODE_ENV: 'production' },
+      stdio: 'inherit',
+    });
+    children.push({ ...definition, child });
+  }
+  let stopping = false;
+  const stop = (signal) => {
+    if (stopping) return;
+    stopping = true;
+    for (const { child } of children) child.kill(signal);
+  };
+  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => stop(signal));
+  const exits = children.map(({ target, child }) => once(child, 'exit').then(([code, signal]) => ({ target, code, signal })));
+  const first = await Promise.race(exits);
+  const unexpected = !stopping;
+  if (unexpected) {
+    console.error(`${first.target} exited unexpectedly (code=${first.code}, signal=${first.signal ?? 'none'}); stopping local stack.`);
+    stop('SIGTERM');
+  }
+  await Promise.allSettled(exits);
+  process.exitCode = unexpected ? (first.code || 1) : 0;
+} else {
+  const commands = {
+    api: ['npm', ['run', 'dev:api']],
+    indexer: ['npm', ['run', 'dev:indexer']],
+    web: ['npm', ['run', 'dev']],
+  };
+  const [command, args] = commands[service];
+  const child = spawn(command, args, {
+    cwd: repositoryRoot,
+    env: await environmentFor(service),
+    stdio: 'inherit',
+  });
+  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => child.kill(signal));
+  const [code, signal] = await once(child, 'exit');
+  if (signal) process.kill(process.pid, signal);
+  process.exitCode = code ?? 1;
 }
-const [code, signal] = await once(child, 'exit');
-if (signal) process.kill(process.pid, signal);
-process.exitCode = code ?? 1;

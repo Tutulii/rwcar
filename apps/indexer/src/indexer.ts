@@ -130,9 +130,8 @@ export class RepoIndexer {
       } catch (error) {
         console.error('Indexer sync failed', error);
       }
-      if (this.running && caughtUp) {
-        await new Promise((resolve) => setTimeout(resolve, this.config.INDEXER_POLL_MS));
-      }
+      const delayMs = caughtUp ? this.config.INDEXER_POLL_MS : this.config.INDEXER_CATCHUP_DELAY_MS;
+      if (this.running && delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }

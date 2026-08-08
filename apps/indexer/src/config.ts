@@ -6,10 +6,13 @@ const schema = z.object({
   MONAD_RPC_URL: z.string().url().default(MONAD_TESTNET.rpcUrl),
   REPO_MARKET_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   REPO_MARKET_DEPLOYMENT_BLOCK: z.coerce.bigint().nonnegative(),
+  V1_INDEXER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  V1_KEEPER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   INDEXER_CONFIRMATIONS: z.coerce.bigint().min(1n).default(3n),
   // Monad Testnet currently enforces a maximum 100-block eth_getLogs range.
   INDEXER_BATCH_SIZE: z.coerce.bigint().min(1n).max(100n).default(100n),
   INDEXER_POLL_MS: z.coerce.number().int().min(1_000).default(5_000),
+  INDEXER_CATCHUP_DELAY_MS: z.coerce.number().int().min(0).max(5_000).default(100),
   KEEPER_PRIVATE_KEY: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
   KEEPER_POLL_MS: z.coerce.number().int().min(5_000).default(10_000),
   V2_DEPLOYMENTS_JSON: z.string().default('[]'),
