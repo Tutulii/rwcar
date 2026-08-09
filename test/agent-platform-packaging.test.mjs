@@ -100,6 +100,16 @@ describe('agent service isolation', () => {
     assert.doesNotMatch(console, /signTypedData\(challenge(?:\.typedData)?, \{ address: adminAddress \}\)/);
   });
 
+  it('keeps judge onboarding to three guided least-privilege steps', () => {
+    const console = read('src/AgentConsole.jsx');
+    assert.match(console, /Step 1 of 3/);
+    assert.match(console, /Verify Identity & Sign Mandate/);
+    assert.match(console, /Generate Read-only Credential/);
+    assert.match(console, /const DEFAULT_SCOPES = \['protocol:read'\]/);
+    assert.match(console, /className="agent-advanced-console"/);
+    assert.match(console, /Advanced institutional controls/);
+  });
+
   it('keeps the reviewed Hono advisory path unreachable in the Linux API image', () => {
     assert.match(read('Dockerfile.api'), /^FROM node:22-bookworm-slim/m);
     const apiSources = [read('apps/api/src/routes/mcp.ts'), read('apps/api/src/app.ts')].join('\n');
