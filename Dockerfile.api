@@ -6,11 +6,13 @@ COPY packages/db/package.json packages/db/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/indexer/package.json apps/indexer/package.json
+COPY apps/agent-executor/package.json apps/agent-executor/package.json
 RUN npm ci
 COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY packages/db packages/db
 COPY apps/api apps/api
+COPY skills/rwcar-agent skills/rwcar-agent
 RUN npm run build -w @rwcar/shared && npm run build -w @rwcar/db && npm run build -w @rwcar/api
 RUN npm prune --omit=dev
 
@@ -22,6 +24,7 @@ COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/packages/shared packages/shared
 COPY --from=build /app/packages/db packages/db
 COPY --from=build /app/apps/api apps/api
+COPY --from=build /app/skills/rwcar-agent skills/rwcar-agent
 USER node
 EXPOSE 3001
 CMD ["node", "apps/api/dist/server.js"]

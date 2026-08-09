@@ -246,6 +246,7 @@ export type ValuationAttestation = {
 };
 
 export interface ChainService {
+  nativeBalance(account: Address): Promise<bigint>;
   balanceOf(token: Address, account: Address): Promise<bigint>;
   allowance(token: Address, owner: Address, spender: Address): Promise<bigint>;
   poolEligible(validator: Address, pool: Address, user: Address): Promise<boolean>;
@@ -300,6 +301,9 @@ export function createChainService(config: ApiConfig): ChainService {
   };
 
   return {
+    async nativeBalance(account: Address) {
+      return client.getBalance({ address: account });
+    },
     async balanceOf(token: Address, account: Address) {
       return client.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [account] });
     },

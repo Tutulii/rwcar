@@ -12,6 +12,7 @@ describe('Railway deployment packaging', () => {
   it('uses separate Dockerfiles and bounded restart policies for every service', () => {
     const expected = {
       api: '/Dockerfile.api',
+      'agent-executor': '/Dockerfile.agent-executor',
       indexer: '/Dockerfile.indexer',
       web: '/Dockerfile.web',
     };
@@ -36,7 +37,7 @@ describe('Railway deployment packaging', () => {
 
   it('passes all public frontend settings at Docker build time', () => {
     const dockerfile = read('Dockerfile.web');
-    for (const key of ['VITE_PRIVY_APP_ID', 'VITE_API_URL', 'VITE_TRUSTED_V2_MANIFEST_JSON']) {
+    for (const key of ['VITE_PRIVY_APP_ID', 'VITE_API_URL', 'VITE_TRUSTED_V2_MANIFEST_JSON', 'VITE_PRIVY_AGENT_SIGNER_ID', 'VITE_PRIVY_AGENT_POLICY_ID']) {
       assert.match(dockerfile, new RegExp(`ARG ${key}`));
       assert.match(dockerfile, new RegExp(`ENV ${key}=`));
     }

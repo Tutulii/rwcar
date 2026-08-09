@@ -20,6 +20,11 @@
 - Secret exposure: backend values have no `VITE_` prefix, logs redact authorization/internal headers, and `.env` files are ignored.
 - Frontend/API substitution: a reviewed build-time manifest pins all V2 addresses and runtime-code hashes. The browser rejects mismatched API config, runtime drift, unknown destinations/selectors, altered calldata, native value, and non-exact approvals before opening the wallet.
 - Duplicate signing after receipt/indexer delay: submitted hashes are persisted across reloads and remain action-locked until chain receipt and finalized projection reconciliation. Storage failure is surfaced as a submitted-transaction condition with the hash, never as a normal retryable error.
+- Agent prompt injection or tool misuse: the machine interface has no arbitrary transaction tool. Signed mandates constrain assets/actions/rates/durations/counterparties/recipients/notional, risky actions require a separate administrator signature, and the executor verifies fixed destinations/selectors plus live preflight before signing.
+- Agent credential theft: OAuth secrets are scrypt-hashed, tokens are short-lived and audience-bound, and every call rechecks live credential/agent/CVI/mandate state. Pause/revoke cancels unsubmitted intents under the same authority lock.
+- Agent signer compromise: the authorization private key is isolated from API/web, Privy applies a deny-by-default policy, and the executor rejects imported/exported wallets or signer/policy/address drift. A compromised signer cannot call unlisted contracts or bypass on-chain compliance.
+- Ambiguous machine execution: semantic UUID idempotency, Privy idempotency keys, immutable step hashes, per-wallet leases, and receipt/index reconciliation prevent a timeout from authoring a second operation.
+- Dependency supply chain: production audits block on high or critical findings. The current reviewed transitive disposition is recorded in [DEPENDENCY_AUDIT.md](DEPENDENCY_AUDIT.md), including its platform and reachability constraints.
 
 ## V2 custody and market risks
 

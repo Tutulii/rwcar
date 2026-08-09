@@ -105,3 +105,11 @@ These routes are disabled unless `ADMIN_API_KEY` is configured and require `x-ad
 - `POST /internal/v1/documents/:asset` accepts one multipart evidence file (25 MB maximum), computes SHA-256, stores it with S3/KMS or AES-256 server-side encryption, and records immutable hash metadata.
 
 Cleanverse credentials, the admin credential, storage credentials, deployer keys, keeper keys, and oracle signer keys must never be present in the browser bundle.
+
+## Institutional agent API
+
+`GET /agent-discovery.json` publishes the canonical OAuth resource, MCP endpoint, OpenAPI document, exact tool names, and hash-pinned downloadable skill. OAuth protected-resource metadata is available at `/.well-known/oauth-protected-resource/mcp`; authorization-server metadata and JWKS use their standard `/.well-known/` endpoints.
+
+Institution administrators use Privy-authenticated `/v2/agents/*` routes to provision the wallet, mandate, compliance state, expiring credentials, pause/revocation, and intent approvals. Machines use a short-lived audience-bound bearer token with `/agent/v1/*` or the equivalent 17 semantic tools at `/mcp`. Every write is prepare-then-execute; no route accepts arbitrary destination/calldata.
+
+The complete lifecycle, scope mapping, and deployment procedure are documented in [AGENT_PLATFORM.md](AGENT_PLATFORM.md). The machine-readable REST schema is `GET /openapi.json`.
