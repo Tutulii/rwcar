@@ -21,7 +21,7 @@
     "build:web": "vite build",
     "typecheck": "npm run build -w @rwcar/shared && npm run build -w @rwcar/db && npm run typecheck --workspaces --if-present",
     "test": "npm run test -w @rwcar/contracts && npm run test -w @rwcar/db && npm run test -w @rwcar/api && npm run test -w @rwcar/agent-executor && npm run test -w @rwcar/indexer && npm run test:web-security && npm run test:deployment-packaging",
-    "test:web-security": "node --import tsx --test test/v2-security.test.mjs",
+    "test:web-security": "node --import tsx --test test/v2-security.test.mjs test/margin-risk-display.test.mjs",
     "test:deployment-packaging": "node --test test/*packaging.test.mjs",
     "test:contracts": "npm run test -w @rwcar/contracts",
     "deploy:uat:v2": "npm run deploy:uat:v2 -w @rwcar/contracts",

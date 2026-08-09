@@ -42,6 +42,7 @@ import type { ComplianceService } from './compliance.js';
 import type { CleanverseClient } from './cleanverse.js';
 import { hasEligibleCviProof } from './compliance.js';
 import { calculateFillEconomics } from './economics.js';
+import { enrichMarginRiskRows } from './margin-risk.js';
 import {
   AgentJwtService,
   canonicalHash,
@@ -1365,9 +1366,13 @@ export class AgentService {
     const repoVaultAvailable = repoConfig.vault === '0x0000000000000000000000000000000000000000'
       ? 0n
       : await this.chain.vaultAvailable(repoConfig.vault, claims.wallet).catch(() => 0n);
+    const [liveAccounts, liveFundableAccounts] = await Promise.all([
+      enrichMarginRiskRows(this.chain, engine, accounts, metadata),
+      enrichMarginRiskRows(this.chain, engine, fundableAccounts, metadata),
+    ]);
     return serializeRow({
-      accounts,
-      fundableAccounts,
+      accounts: liveAccounts,
+      fundableAccounts: liveFundableAccounts,
       featureReady: this.config.V2_MARGIN_ENABLED,
       collateralSources: {
         asset: metadata.asset,

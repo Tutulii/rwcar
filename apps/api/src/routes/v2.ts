@@ -22,6 +22,7 @@ import { AppError } from '../errors.js';
 import type { AuthClaims, AuthService } from '../services/auth.js';
 import type { ChainService } from '../services/chain.js';
 import { calculateDutchAuctionPrice, calculateFillEconomics, calculateLiquidationWaterfall, calculatePayoffEconomics, uniqueVaultAddresses } from '../services/economics.js';
+import { enrichMarginRiskRows } from '../services/margin-risk.js';
 import { serializeRow, type StoreService } from '../services/store.js';
 import type { V2PreflightService } from '../services/v2-preflight.js';
 
@@ -40,6 +41,25 @@ export function registerV2Routes(
   const vault = config.COLLATERAL_VAULT_V2_ADDRESS as Address | undefined;
   const auctionHouse = config.DUTCH_AUCTION_V2_ADDRESS as Address | undefined;
   const marginEngine = config.MARGIN_ENGINE_V2_ADDRESS as Address | undefined;
+  let marginRiskMetadataPending: ReturnType<ChainService['marginMetadata']> | undefined;
+  const marginRiskMetadata = () => {
+    if (!marginEngine) return Promise.reject(new Error('Margin engine is not configured'));
+    if (!marginRiskMetadataPending) {
+      marginRiskMetadataPending = chain.marginMetadata(marginEngine).catch((error) => {
+        marginRiskMetadataPending = undefined;
+        throw error;
+      });
+    }
+    return marginRiskMetadataPending;
+  };
+  const withLiveMarginRisk = async <T extends { accountId: string | number | bigint }>(
+    rows: T[],
+    options: { includeLiveAccount?: boolean } = {},
+  ) => {
+    if (!marginEngine || rows.length === 0) return rows;
+    const metadata = await marginRiskMetadata().catch(() => null);
+    return enrichMarginRiskRows(chain, marginEngine, rows, metadata, options);
+  };
   let auctionHouseCache: Address[] | undefined;
   let auctionHousePending: Promise<Address[]> | undefined;
   const auctionHouses = async () => {
@@ -409,10 +429,7 @@ export function registerV2Routes(
     const { limit } = request.query as { limit: number };
     const accounts = await store.listFundableMarginAccounts(marginEngine, limit);
     return serializeRow({
-      accounts: await Promise.all(accounts.map(async (account) => ({
-        ...account,
-        liveLtvBps: await chain.marginAccountLtv(marginEngine, BigInt(account.accountId)).catch(() => null),
-      }))),
+      accounts: await withLiveMarginRisk(accounts),
       featureReady: true,
     });
   });
@@ -425,18 +442,15 @@ export function registerV2Routes(
     const { accountId } = request.params as { accountId: string };
     const projection = await store.getMarginAccountDetail(accountId, marginEngine);
     if (!projection) throw new AppError(404, 'MARGIN_ACCOUNT_NOT_FOUND', 'Margin account was not found');
-    const [live, liveLtvBps] = await Promise.all([
-      chain.marginAccount(marginEngine, BigInt(accountId)),
-      chain.marginAccountLtv(marginEngine, BigInt(accountId)).catch(() => null),
-    ]);
-    return serializeRow({ ...projection, live, liveLtvBps });
+    const [enriched] = await withLiveMarginRisk([projection], { includeLiveAccount: true });
+    return serializeRow(enriched);
   });
   app.get('/v2/margin/accounts/:wallet', {
     schema: { params: z.object({ wallet: AddressSchema }) },
   }, async (request) => {
     const { wallet } = request.params as { wallet: Address };
     if (!marginEngine) return [];
-    return serializeRow(await store.listMarginAccounts(wallet, marginEngine));
+    return serializeRow(await withLiveMarginRisk(await store.listMarginAccounts(wallet, marginEngine)));
   });
   app.get('/v2/claims/:wallet', {
     schema: { params: z.object({ wallet: AddressSchema }) },
