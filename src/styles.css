@@ -1141,6 +1141,15 @@ tbody tr:hover { background: rgba(255,255,255,.012); }
 .agent-quickstart-progress i.current { background: #d4af37; box-shadow: 0 0 12px rgba(212,175,55,.26); }
 .agent-quickstart-facts { display: flex; flex-wrap: wrap; gap: 7px; margin: -3px 0 17px; }
 .agent-quickstart-facts span { padding: 6px 8px; color: #9eabbb; border: 1px solid #29364a; border-radius: 999px; background: rgba(15,23,42,.74); font-size: 7px; }
+.agent-access-options { display: grid; width: min(100%, 680px); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: -2px 0 16px; }
+.agent-access-options > button { display: flex; min-width: 0; align-items: flex-start; flex-direction: column; gap: 5px; padding: 13px; text-align: left; border: 1px solid #29364a; border-radius: 9px; outline: none; background: rgba(12,20,33,.82); cursor: pointer; }
+.agent-access-options > button:hover { border-color: rgba(212,175,55,.3); background: rgba(212,175,55,.045); }
+.agent-access-options > button:focus-visible { border-color: rgba(212,175,55,.65); box-shadow: 0 0 0 2px rgba(212,175,55,.1); }
+.agent-access-options > button.selected { border-color: rgba(212,175,55,.48); background: linear-gradient(145deg, rgba(212,175,55,.105), rgba(212,175,55,.035)); box-shadow: inset 0 0 0 1px rgba(212,175,55,.04); }
+.agent-access-options span { color: #c7b15d; font-size: 7px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.agent-access-options strong { color: #c8d0da; font-size: 10px; }
+.agent-access-options small { color: #657388; font-size: 7px; line-height: 1.5; }
+.agent-quickstart-copy > .agent-add-credential { margin: 1px 0 12px; color: #708095; font-size: 8px; }
 .agent-connect-grid { display: grid; width: min(100%, 680px); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 0 0 15px; }
 .agent-connect-grid > a, .agent-connect-grid > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; padding: 12px; color: inherit; border: 1px solid rgba(16,185,129,.2); border-radius: 8px; background: rgba(16,185,129,.04); text-decoration: none; }
 .agent-connect-grid span { color: #668175; font-size: 7px; text-transform: uppercase; }
@@ -1311,6 +1320,7 @@ tbody tr:hover { background: rgba(255,255,255,.012); }
   .agent-quickstart-copy h3 { font-size: 18px; }
   .agent-quickstart-copy > p { font-size: 9px; }
   .agent-quickstart-copy > .button { width: 100%; }
+  .agent-access-options { grid-template-columns: 1fr; }
   .agent-connect-grid { grid-template-columns: 1fr; }
   .agent-quickstart-progress i { width: 22px; }
   .agent-advanced-console > summary { align-items: flex-start; flex-wrap: wrap; }
