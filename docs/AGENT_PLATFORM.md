@@ -1,6 +1,6 @@
 # RWCAR institutional agent platform
 
-RWCAR exposes a bounded machine interface for institution-owned AI agents. An agent can discover markets, read confirmed portfolio state, prepare semantic actions, and queue an immutable intent. It cannot submit arbitrary calldata, receive a wallet private key, waive Cleanverse checks, or approve its own high-risk action.
+RWCAR exposes a bounded machine interface for institution-owned AI agents. An agent can discover markets, read confirmed portfolio state, prepare semantic actions, and queue an immutable intent. An administrator chooses either an autonomous mandate (one signature, no per-intent approvals) or a supervised mandate. The agent cannot submit arbitrary calldata, receive a wallet private key, or waive Cleanverse and on-chain checks.
 
 The machine surface is V2-only and runs on Monad Testnet. Cleanverse UAT A-Passes and A-Tokens are real UAT records, but synthetic UAT identity enrollment is not production KYC.
 
@@ -12,7 +12,7 @@ Institution administrator
        ├─ creates a dedicated non-exported agent wallet
        ├─ attaches the reviewed Privy signer policy
        ├─ signs the EIP-712 mandate
-       └─ signs exceptional intent approvals
+       └─ optionally signs exceptional intent approvals for supervised mandates
 
 AI agent runtime
   └─ OAuth client credentials → short-lived audience-bound JWT
@@ -49,7 +49,7 @@ OAuth uses `client_credentials`. Every token request must contain the exact `res
 4. Deploy PostgreSQL, API, indexer, executor, and web in the order in [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md).
 5. In the Agent Console, the institution administrator creates an agent record and a fresh dedicated Privy wallet. The API verifies that wallet ID/address, Ethereum chain type, attached signer policy, and non-imported/non-exported state before binding it permanently.
 6. Register or confirm the wallet's Cleanverse A-Pass. The built-in synthetic enrollment button is deliberately UAT-only and rate-limited.
-7. Sign a time-bounded EIP-712 mandate that includes the agent wallet, exact skill hash, allowed actions/assets/counterparties/recipients, rate and duration bands, per-transaction notional, UTC daily notional, and auto-execution threshold.
+7. Sign a time-bounded EIP-712 mandate that includes the agent wallet, exact skill hash, execution mode, allowed actions/assets/counterparties/recipients, rate and duration bands, per-transaction notional, UTC daily notional, and supervised auto-execution threshold. `AUTONOMOUS` delegates all listed actions without later human prompts; `SUPERVISED` preserves per-intent review.
 8. Refresh live compliance for every allowed CVA and its policy pool. Only then can the agent become `ACTIVE` and receive an expiring OAuth credential.
 9. Fund the dedicated wallet with Monad gas and only the CVA/aUSDC inventory it needs. The Console reports its live MON gas state.
 
@@ -63,7 +63,7 @@ Client secrets are displayed once. RWCAR stores only a scrypt hash. A credential
 4. Call `get_protocol_info`, `list_verified_assets`, and `check_eligibility` before selecting an action.
 5. Generate one UUID idempotency key and call the matching `prepare_*` tool. A retry must reuse the same key and exact inputs.
 6. Review the intent hash, policy decision, live quote, `blockingDetails`, `resolvedByTransactions`, projected state, next actions, destinations, selectors, and transaction steps.
-7. Stop at `APPROVAL_REQUIRED`. Pass the returned `approvalHandoff` to the institution administrator; only that administrator can sign the hash-bound approval in the Console.
+7. Under `AUTONOMOUS`, an otherwise permitted intent is immediately `PREPARED`. Under `SUPERVISED`, stop at `APPROVAL_REQUIRED` and pass the returned `approvalHandoff` to the administrator.
 8. Call `execute_intent` with the exact intent ID/hash. The executor refreshes preflight before every not-yet-submitted step and refuses semantic drift.
 9. Resume `/agent/v1/events/stream` by event UUID or poll `get_execution_status` through receipt confirmation and finalized index projection. Only `COMPLETED` is a fully reconciled success.
 
@@ -74,7 +74,7 @@ The exact tool contracts and workflows are in [the packaged skill](../skills/rwc
 | State | Meaning | Caller behavior |
 | --- | --- | --- |
 | `PREPARED` | Policy permits queueing without another signature | Execute before expiry |
-| `APPROVAL_REQUIRED` | Risk/notional requires administrator review | Stop and request approval |
+| `APPROVAL_REQUIRED` | A supervised mandate requires administrator review | Stop and request approval |
 | `APPROVED` | Exact intent hash has a live EIP-712 approval | Execute before expiry |
 | `QUEUED` / `SIGNING` | Serialized executor work | Poll; never duplicate |
 | `SUBMITTED` | Immutable Monad transaction hash recorded | Reconcile the same hash |
@@ -88,7 +88,7 @@ An `INSUFFICIENT_ALLOWANCE` entry in `resolvedByTransactions` is not a denial: t
 
 Portfolio reads preserve the raw on-chain status and add a derived lifecycle state. An ACTIVE position becomes `OVERDUE` immediately after its repayment deadline while the durable keeper retries `startAuction`; supported lifecycle jobs do not dead-letter on temporary oracle or RPC outages. Valuations are selected from the server-managed signed oracle, never supplied by an agent.
 
-Margin discovery includes public fundable accounts and wallet/repo-vault/margin-vault balances. A `DEPOSIT` with `collateralSource=AUTO` can compose a Repo Vault AVAILABLE withdrawal and MarginEngine deposit under the existing human approval gate; executor re-preflight compares only the unexecuted suffix after each confirmed step.
+Margin discovery includes public fundable accounts and wallet/repo-vault/margin-vault balances. A `DEPOSIT` with `collateralSource=AUTO` can compose a Repo Vault AVAILABLE withdrawal and MarginEngine deposit; autonomous mandates execute the whole reviewed sequence without approval between legs. Executor re-preflight compares only the unexecuted suffix after each confirmed step.
 
 ## Safety invariants
 

@@ -12,7 +12,6 @@ import {
   OfferActionV2Schema,
   PositionLifecycleActionV2Schema,
   RepayPositionV2Schema,
-  SettlementClaimV2Schema,
 } from './v2.js';
 
 export const AgentStatusSchema = z.enum([
@@ -46,6 +45,8 @@ export const AgentIntentStateSchema = z.enum([
 ]);
 
 export const AgentPolicyDecisionSchema = z.enum(['AUTO_APPROVED', 'HUMAN_REQUIRED', 'DENIED']);
+
+export const AgentExecutionModeSchema = z.enum(['AUTONOMOUS', 'SUPERVISED']);
 
 export const AgentActionSchema = z.enum([
   'VAULT_DEPOSIT',
@@ -92,6 +93,10 @@ export const BindAgentWalletSchema = z.object({
 });
 
 export const AgentMandateConstraintsSchema = z.object({
+  // Existing mandates predate executionMode. Parsing them as SUPERVISED
+  // preserves their signed authority exactly; autonomy always requires a new
+  // administrator signature over an explicit AUTONOMOUS constraint.
+  executionMode: AgentExecutionModeSchema.default('SUPERVISED'),
   allowedActions: z.array(AgentActionSchema).min(1),
   allowedAssets: z.array(AddressSchema).min(1),
   maxPerTransaction: UintStringSchema.refine((value) => BigInt(value) > 0n, 'Must be greater than zero'),
@@ -167,7 +172,12 @@ export const AgentAuctionActionSchema = AgentIdempotencySchema.extend({
   maxPrice: UintStringSchema.optional(),
 });
 
-export const AgentClaimSchema = AgentIdempotencySchema.extend(SettlementClaimV2Schema.omit({ actor: true }).shape);
+export const AgentClaimSchema = AgentIdempotencySchema.extend({
+  claimId: UintStringSchema,
+  escrowAddress: AddressSchema.optional().describe('Optional when claimId uniquely identifies one indexed claim for the agent wallet.'),
+  amount: UintStringSchema.optional().describe('Defaults to the full indexed claimable balance.'),
+  recipient: AddressSchema.optional().describe('Defaults to the bound agent wallet.'),
+});
 
 export const AgentMarginActionSchema = AgentIdempotencySchema.extend(MarginActionV2Schema.omit({ actor: true }).shape);
 
@@ -233,6 +243,7 @@ export type AgentAction = z.infer<typeof AgentActionSchema>;
 export type AgentScope = z.infer<typeof AgentScopeSchema>;
 export type AgentIntentState = z.infer<typeof AgentIntentStateSchema>;
 export type AgentPolicyDecision = z.infer<typeof AgentPolicyDecisionSchema>;
+export type AgentExecutionMode = z.infer<typeof AgentExecutionModeSchema>;
 export type AgentMandateConstraints = z.infer<typeof AgentMandateConstraintsSchema>;
 export type AgentVaultAction = z.infer<typeof AgentVaultActionSchema>;
 export type AgentCreateOffer = z.infer<typeof AgentCreateOfferSchema>;

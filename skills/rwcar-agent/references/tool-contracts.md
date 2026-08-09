@@ -9,7 +9,7 @@ RWCAR exposes exactly 17 semantic tools. Inputs use decimal strings for `uint256
 3. `list_verified_assets` — enabled Cleanverse-issued CVAs accepted by V2.
 4. `list_offers` — finalized open repo offers.
 5. `get_offer_quote` — inputs: `offerId`, `principalAmount`; deterministic pro-rata economics without an intent.
-6. `get_portfolio` — offers, positions, derived `OVERDUE` state, latest authorized valuation, default-keeper status and execution mode, role-specific next actions, vault buckets, claims, and recent activity. `defaultAutomation.humanApprovalRequired=false` identifies the direct permissionless keeper path.
+6. `get_portfolio` — offers, positions, derived `OVERDUE` state, latest authorized valuation, default-keeper status and execution mode, role-specific next actions, vault buckets, claims, and recent activity. Claim rows include `prepareClaimInput`; add a fresh UUID and pass it directly to `prepare_claim`.
 7. `get_margin_accounts` — owned/financed accounts, public fundable accounts, collateral-source balances, ordered workflow, exposures, margin calls, and lender relationships.
 8. `list_auctions` — input: optional `includeClosed`; current and historical Dutch auctions.
 9. `get_execution_status` — input: `intentId`; policy, approval, steps, transaction hashes, indexing, and terminal error.
@@ -21,21 +21,21 @@ RWCAR exposes exactly 17 semantic tools. Inputs use decimal strings for `uint256
 12. `prepare_offer_action` — `FILL`, `CANCEL`, or `FINALIZE_EXPIRY`; offer ID, optional principal amount, idempotency key.
 13. `prepare_position_action` — `REPAY`, `START_AUCTION`, `CLAIM_COLLATERAL`, or `CLAIM_ORACLE_FALLBACK`; position ID and action-specific bounds, idempotency key. `START_AUCTION` resolves the signed valuation server-side.
 14. `prepare_auction_action` — `BUY` or `FINALIZE_FAILED`; auction ID, optional maximum price, idempotency key.
-15. `prepare_claim` — indexed settlement-escrow claim and recipient fields defined by the live schema, idempotency key.
+15. `prepare_claim` — claim ID and idempotency key are sufficient when the claim is unambiguous. The server resolves the proven escrow, full remaining amount, and bound-wallet recipient; callers may explicitly bound amount or an admitted recipient.
 16. `prepare_margin_action` — one live-schema margin action, bounded inputs, idempotency key. `DEPOSIT` accepts `collateralSource=AUTO|WALLET|REPO_VAULT`; AUTO may compose a reviewed repo-vault sweep.
 
 Preparation always returns a durable intent. It never authorizes arbitrary calldata and never itself signs a transaction.
 
 ## Standard intent envelope
 
-Every prepared or status response includes `state`, `policyDecision`, nonempty denial `blockingReasons`, actionable `blockingDetails`, `resolvedByTransactions`, `quote`, `projectedState`, `transactionSummary`, `freshness`, `expiresAt`, and `nextActions`. `APPROVAL_REQUIRED` also includes an exact `approvalHandoff`. Never treat `resolvedByTransactions` as an unresolved blocker.
+Every prepared or status response includes `state`, `policyDecision`, nonempty denial `blockingReasons`, actionable `blockingDetails`, `resolvedByTransactions`, `quote`, `projectedState`, `transactionSummary`, `freshness`, `expiresAt`, and `nextActions`. `APPROVAL_REQUIRED` occurs only under a supervised mandate and includes an exact `approvalHandoff`. Never treat `resolvedByTransactions` as an unresolved blocker.
 
 ## Role matrix
 
 | Action | Permitted on-chain actor |
 |---|---|
 | Repay isolated position | Seller |
-| Start overdue auction | Direct keeper: any caller after the deadline, no agent approval. Manual agent: mandate must include `START_AUCTION` and policy may require administrator approval. |
+| Start overdue auction | Direct keeper: any caller after the deadline. Manual agent: mandate must include `START_AUCTION`; autonomous mode needs no per-intent approval. |
 | Buy isolated auction | CVI-eligible non-seller; first successful fill wins |
 | Claim failed-auction collateral | Position lender |
 | Open/add/repay margin account | Account seller, subject to action-specific rules |
@@ -45,12 +45,12 @@ An `ACTION_NOT_ALLOWED` denial is a restriction on the manual agent intent, not 
 
 ## Execution tool
 
-17. `execute_intent` — inputs: `intentId` and exact `expectedIntentHash`. Queues an eligible or human-approved intent. The isolated signer re-runs preflight, verifies destinations/selectors/calldata, and refuses drift before signing.
+17. `execute_intent` — inputs: `intentId` and exact `expectedIntentHash`. Queues an eligible autonomous or approved supervised intent. The isolated signer re-runs preflight, verifies destinations/selectors/calldata, and refuses drift before signing.
 
 ## Intent states
 
 - `PREPARED`: policy accepted preparation; ready to queue before expiry.
-- `APPROVAL_REQUIRED`: administrator signature needed.
+- `APPROVAL_REQUIRED`: supervised-mandate administrator signature needed.
 - `APPROVED`: approval recorded; ready to queue.
 - `QUEUED`, `SIGNING`, `SUBMITTED`, `CONFIRMED`, `INDEXING`: nonterminal execution states. Poll; do not duplicate.
 - `COMPLETED`: transaction finalized and indexed.

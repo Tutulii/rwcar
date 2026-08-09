@@ -189,28 +189,28 @@ export function createRwcarMcpServer(service: AgentService, claims: AgentClaims)
 
   server.registerTool('prepare_auction_action', {
     title: 'Prepare an auction action',
-    description: 'Create a first-successful-fill Dutch auction purchase or failed-auction finalization intent. Purchases always need human approval.',
+    description: 'Create a first-successful-fill Dutch auction purchase or failed-auction finalization intent. An AUTONOMOUS signed mandate executes without per-intent human approval.',
     inputSchema: AgentAuctionActionSchema,
     annotations: { destructiveHint: false, idempotentHint: true },
   }, safeTool(async (input) => service.prepareAuctionAction(claims, input as Parameters<AgentService['prepareAuctionAction']>[1])));
 
   server.registerTool('prepare_claim', {
     title: 'Prepare a settlement escrow claim',
-    description: 'Create a bounded claim intent against an on-chain-proven RWCAR escrow and verified beneficiary.',
+    description: 'Create a bounded claim intent against an indexed RWCAR escrow. Supply claimId; escrow, full remaining amount, and self-recipient resolve automatically when unambiguous.',
     inputSchema: AgentClaimSchema,
     annotations: { destructiveHint: false, idempotentHint: true },
   }, safeTool(async (input) => service.prepareClaim(claims, input as Parameters<AgentService['prepareClaim']>[1])));
 
   server.registerTool('prepare_margin_action', {
     title: 'Prepare a cross-margin action',
-    description: 'Create a shared-collateral margin intent with ordered prerequisites, oracle/LTV/compliance checks, and human approval. DEPOSIT can safely compose Repo Vault AVAILABLE via collateralSource.',
+    description: 'Create a shared-collateral margin intent with ordered prerequisites and oracle/LTV/compliance checks. AUTONOMOUS mandates need no per-action approval; DEPOSIT can compose Repo Vault AVAILABLE via collateralSource.',
     inputSchema: AgentMarginActionSchema,
     annotations: { destructiveHint: false, idempotentHint: true },
   }, safeTool(async (input) => service.prepareMargin(claims, input)));
 
   server.registerTool('execute_intent', {
     title: 'Queue an approved RWCAR intent',
-    description: 'Queue a previously prepared intent only when its exact hash matches and all mandate/human-approval gates pass. The isolated executor re-preflights before signing.',
+    description: 'Queue a previously prepared intent when its exact hash and signed mandate policy match. AUTONOMOUS mandates skip per-intent approval; the isolated executor re-preflights before signing.',
     inputSchema: ExecuteAgentIntentSchema,
     annotations: { destructiveHint: true, idempotentHint: true },
   }, safeTool(async (input) => service.executeIntent(claims, input.intentId, input.expectedIntentHash as Hex)));

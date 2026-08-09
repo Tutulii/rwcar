@@ -41,6 +41,29 @@ export class SubmittedTransactionError extends Error {
   }
 }
 
+function walletErrorText(reason) {
+  const values = [reason?.message, reason?.details, reason?.shortMessage, reason?.cause?.message]
+    .filter((value) => typeof value === 'string');
+  try { values.push(JSON.stringify(reason)); } catch { /* Non-serializable provider error. */ }
+  return values.join(' ');
+}
+
+export function normalizeWalletProviderError(reason) {
+  const detail = walletErrorText(reason);
+  if (/ERR_NAME_NOT_RESOLVED|Cronet failed|InternalErrorCode=-105|DNS/i.test(detail)) {
+    const error = new Error('Your wallet could not resolve its Monad RPC host. No transaction was submitted. Check the wallet network connection, then retry this action.');
+    error.code = 'WALLET_RPC_DNS_UNAVAILABLE';
+    error.retryable = true;
+    return error;
+  }
+  if (reason?.code === 4001 || /user rejected|user denied|request rejected/i.test(detail)) {
+    const error = new Error('The wallet request was rejected. No transaction was submitted.');
+    error.code = 'WALLET_SIGNATURE_REJECTED';
+    return error;
+  }
+  return reason instanceof Error ? reason : new Error('The wallet provider could not prepare the transaction. No transaction was submitted.');
+}
+
 export async function readRuntimeCodeHash(address) {
   const bytecode = await publicClient.getBytecode({ address });
   if (!bytecode || bytecode === '0x') throw new Error(`No runtime code exists at ${address}.`);
@@ -95,14 +118,25 @@ export async function sendTransaction(wallet, to, data, { onSubmitted, value, ex
   if (expectedFrom && wallet.address?.toLowerCase() !== expectedFrom.toLowerCase()) {
     throw new Error('The active signer changed after preflight. Review the action with the connected wallet again.');
   }
-  await wallet.switchChain(MONAD_CHAIN_ID);
-  const provider = await wallet.getEthereumProvider();
-  const liveChainId = Number(BigInt(await provider.request({ method: 'eth_chainId' })));
+  let provider;
+  let liveChainId;
+  try {
+    await wallet.switchChain(MONAD_CHAIN_ID);
+    provider = await wallet.getEthereumProvider();
+    liveChainId = Number(BigInt(await provider.request({ method: 'eth_chainId' })));
+  } catch (reason) {
+    throw normalizeWalletProviderError(reason);
+  }
   if (liveChainId !== MONAD_CHAIN_ID) throw new Error(`Switch the wallet to Monad Testnet (${MONAD_CHAIN_ID}) before signing.`);
-  const hash = await provider.request({
-    method: 'eth_sendTransaction',
-    params: [{ from: wallet.address, to, data, ...(value && value !== '0' ? { value: `0x${BigInt(value).toString(16)}` } : {}) }],
-  });
+  let hash;
+  try {
+    hash = await provider.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: wallet.address, to, data, ...(value && value !== '0' ? { value: `0x${BigInt(value).toString(16)}` } : {}) }],
+    });
+  } catch (reason) {
+    throw normalizeWalletProviderError(reason);
+  }
   try {
     onSubmitted?.(hash);
   } catch (reason) {

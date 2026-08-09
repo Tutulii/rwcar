@@ -51,6 +51,12 @@ export function buildAgentDiscovery(config: ApiConfig, manifest: Record<string, 
       arbitraryTransactions: false,
       prepareBeforeExecute: true,
       humanApprovalGates: true,
+      executionModes: ['AUTONOMOUS', 'SUPERVISED'],
+      autonomousMandate: {
+        oneTimeAdministratorSignature: true,
+        perIntentHumanApproval: false,
+        boundedBySignedConstraints: true,
+      },
     },
   };
 }

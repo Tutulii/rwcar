@@ -1,6 +1,6 @@
 ---
 name: rwcar-agent
-description: Operate the RWCAR institutional RWA repo market through its OAuth-protected MCP tools. Use when an AI agent must discover Cleanverse-verified assets, assess repo offers, manage tri-party vault balances, prepare or execute partial-fill repo transactions, repay positions, claim settlement funds, participate in liquidation auctions, or manage shared-collateral margin accounts on Monad. Enforces prepare-before-execute, immutable intent hashes, idempotency, signed institutional mandates, live CVI/CVA checks, and human approval gates.
+description: Operate the RWCAR institutional RWA repo market through its OAuth-protected MCP tools. Use when an AI agent must discover Cleanverse-verified assets, assess repo offers, manage tri-party vault balances, prepare or execute partial-fill repo transactions, repay positions, claim settlement funds, participate in liquidation auctions, or manage shared-collateral margin accounts on Monad. Enforces prepare-before-execute, immutable intent hashes, idempotency, signed autonomous or supervised institutional mandates, and live CVI/CVA checks.
 ---
 
 # RWCAR Agent
@@ -15,8 +15,8 @@ Operate RWCAR through the reviewed MCP surface. Treat every amount as an integer
 4. Generate one UUID idempotency key for the semantic operation. Keep it unchanged across retries.
 5. Call the matching `prepare_*` tool. Preparation creates a durable intent but does not sign or submit a transaction.
 6. Inspect the returned intent hash, policy decision, quote expiry, `blockingDetails`, `resolvedByTransactions`, `nextActions`, destinations, selectors, values, and transaction descriptions. An allowance listed in `resolvedByTransactions` is handled by the generated approval step and is not a blocker.
-7. If the intent is `APPROVAL_REQUIRED`, stop execution and pass its `approvalHandoff` to the human administrator. The administrator signs through the Agent Console; do not manufacture an approval.
-8. If policy permits execution, call `execute_intent` with the exact `intentId` and `intentHash` returned by preparation.
+7. Read `get_protocol_info.delegation.executionMode`. Under `AUTONOMOUS`, every action already granted by the signed mandate proceeds without per-intent human approval. Under `SUPERVISED`, stop on `APPROVAL_REQUIRED` and pass its `approvalHandoff` to the administrator; never manufacture an approval.
+8. When the intent is `PREPARED` or `APPROVED`, call `execute_intent` with the exact `intentId` and `intentHash` returned by preparation.
 9. Subscribe to the OAuth-protected event stream published in `/agent-discovery.json`, or poll `get_execution_status`, until a terminal state. Report each Monad transaction hash and distinguish confirmed from fully indexed completion.
 
 Read [workflows.md](references/workflows.md) for lifecycle-specific sequences, [tool-contracts.md](references/tool-contracts.md) for the 17-tool surface, and [errors-and-recovery.md](references/errors-and-recovery.md) before recovering a failed or ambiguous operation.
@@ -25,7 +25,7 @@ Read [workflows.md](references/workflows.md) for lifecycle-specific sequences, [
 
 - Never request or use a private key. RWCAR's isolated executor is the only component authorized to sign agent transactions.
 - Never construct arbitrary calldata or send a raw transaction. Use only the semantic MCP tools.
-- Never bypass CVI, A-Pass, CVA, policy-pool, oracle, vault, balance, allowance, mandate, or human-approval failures.
+- Never bypass CVI, A-Pass, CVA, policy-pool, oracle, vault, balance, allowance, or mandate failures. Respect an approval gate whenever the signed execution mode is `SUPERVISED`.
 - Never retry a submitted or ambiguous operation with a new idempotency key. Query the original intent first.
 - Never change an intent after preparation. Changed economics require a new preparation and a new UUID.
 - Never claim execution from a transaction receipt alone. Require the intent state `COMPLETED` unless explicitly reporting an intermediate state.

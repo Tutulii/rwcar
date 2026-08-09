@@ -66,6 +66,14 @@ type AgentDbTransaction = Parameters<Parameters<RwcarDb['transaction']>[0]>[0];
 
 const ACTIVE_INTENT_STATES = ['PREPARED', 'APPROVAL_REQUIRED', 'APPROVED', 'QUEUED', 'SIGNING', 'SUBMITTED', 'CONFIRMED', 'INDEXING'] as const;
 const ALLOWANCE_ONLY = new Set(['INSUFFICIENT_ALLOWANCE']);
+const SUPERVISED_RISK_ACTIONS = new Set<AgentAction>([
+  'VAULT_WITHDRAW',
+  'START_AUCTION',
+  'BUY_AUCTION',
+  'CLAIM_COLLATERAL',
+  'CLAIM_ORACLE_FALLBACK',
+  'MARGIN_ACTION',
+]);
 
 const BLOCKING_GUIDANCE: Record<string, { message: string; recovery: string }> = {
   ACTION_NOT_ALLOWED: {
@@ -96,6 +104,10 @@ const BLOCKING_GUIDANCE: Record<string, { message: string; recovery: string }> =
     message: 'The repayment grace deadline has not passed on Monad.',
     recovery: 'Wait until the chain timestamp is strictly after repaymentDeadline, then prepare again.',
   },
+  POSITION_NOT_ACTIVE: {
+    message: 'The position has already left the repayable ACTIVE lifecycle.',
+    recovery: 'Refresh get_portfolio and follow its role-specific auction or claim nextActions; do not retry repayment against an auctioned position.',
+  },
   CVI_INELIGIBLE: {
     message: 'The wallet does not satisfy the live Cleanverse policy pool.',
     recovery: 'Refresh A-Pass/CVI eligibility for this wallet and asset before preparing again.',
@@ -107,6 +119,10 @@ const BLOCKING_GUIDANCE: Record<string, { message: string; recovery: string }> =
   ADMIN_REJECTED: {
     message: 'The institution administrator rejected this exact intent.',
     recovery: 'Do not execute it. If the user still wants the action, revise the terms and prepare a new intent for review.',
+  },
+  RECIPIENT_NOT_ALLOWED: {
+    message: 'The requested recipient is neither the agent wallet nor an address admitted by the signed mandate.',
+    recovery: 'Withdraw to the bound agent wallet or ask the administrator to add the recipient in a replacement mandate.',
   },
 };
 
@@ -352,8 +368,8 @@ function firstUint(...candidates: unknown[]): bigint {
 
 // Mandate notional is denominated in settlement-token base units. Collateral
 // quantities are deliberately not compared as though one CVA unit equalled one
-// aUSDC; collateral-only movements are separately action-gated and withdrawals
-// require human approval.
+// aUSDC; collateral-only movements are separately action-gated and remain
+// bounded by vault availability plus the signed execution mode.
 function notionalFrom(action: AgentAction, preflight: PreflightResultV2, input: IntentInput): bigint {
   const amounts = preflight.quote.amounts;
   if (action === 'CREATE_OFFER') return firstUint(amounts.targetPrincipal, input.targetPrincipal);
@@ -369,6 +385,23 @@ function notionalFrom(action: AgentAction, preflight: PreflightResultV2, input: 
     if (marginAction === 'BUY_AUCTION') return firstUint(input.maxPrice, amounts.currentPrice, amounts.price);
   }
   return 0n;
+}
+
+export function resolveMandateApproval(
+  constraints: AgentMandateConstraints,
+  action: AgentAction,
+  notional: bigint,
+) {
+  if (constraints.executionMode === 'AUTONOMOUS') {
+    return { decision: 'AUTO_APPROVED' as const, reason: null };
+  }
+  if (SUPERVISED_RISK_ACTIONS.has(action)) {
+    return { decision: 'HUMAN_REQUIRED' as const, reason: 'RISK_SENSITIVE_ACTION' };
+  }
+  if (notional > BigInt(constraints.autoExecuteUpTo)) {
+    return { decision: 'HUMAN_REQUIRED' as const, reason: 'AUTO_EXECUTE_LIMIT_EXCEEDED' };
+  }
+  return { decision: 'AUTO_APPROVED' as const, reason: null };
 }
 
 function publicIntent(row: IntentRow, steps: Array<typeof agentIntentSteps.$inferSelect> = []) {
@@ -1134,7 +1167,12 @@ export class AgentService {
 
   async protocolInfo(claims: AgentTokenClaims) {
     this.requireScope(claims, 'protocol:read');
-    const [assets, status] = await Promise.all([this.store.listAssets(), this.store.systemStatus()]);
+    const [assets, status, mandate] = await Promise.all([
+      this.store.listAssets(),
+      this.store.systemStatus(),
+      this.activeMandate(claims.agentId, true),
+    ]);
+    const constraints = AgentMandateConstraintsSchema.parse(mandate!.constraints);
     return serializeRow({
       protocol: 'RWCAR',
       version: 'v2',
@@ -1150,6 +1188,16 @@ export class AgentService {
       settlementToken: this.config.V2_SETTLEMENT_TOKEN_ADDRESS,
       assets,
       status,
+      delegation: {
+        executionMode: constraints.executionMode,
+        perIntentHumanApproval: constraints.executionMode === 'SUPERVISED',
+        allowedActions: constraints.allowedActions,
+        allowedAssets: constraints.allowedAssets,
+        selfRecipientAlwaysAllowed: true,
+        maxPerTransaction: constraints.maxPerTransaction,
+        maxDailyNotional: constraints.maxDailyNotional,
+        expiresAt: mandate!.expiresAt,
+      },
       safety: {
         arbitraryTransactions: false,
         preflightRequired: true,
@@ -1271,13 +1319,30 @@ export class AgentService {
         } : null,
       };
     });
+    const enrichedClaims = claimsRows.map((claim) => {
+      const claimable = claim.status === 'PENDING' && BigInt(claim.remaining) > 0n;
+      return {
+        ...claim,
+        claimable,
+        prepareClaimInput: claimable ? {
+          claimId: claim.claimId,
+          escrowAddress: claim.escrowAddress,
+          amount: claim.remaining,
+          recipient: claims.wallet,
+        } : null,
+        nextActions: claimable ? [{
+          action: 'PREPARE_CLAIM',
+          description: 'Generate a fresh idempotency key and pass it with prepareClaimInput to prepare_claim.',
+        }] : [],
+      };
+    });
     return serializeRow({
       wallet: claims.wallet,
       positions: enrichedPositions,
       sellerOffers,
       offerHistory,
       vaultBalances: balances,
-      settlementClaims: claimsRows,
+      settlementClaims: enrichedClaims,
       activity,
       asOf: { block, timestamp: chainTimestamp },
     });
@@ -1464,20 +1529,65 @@ export class AgentService {
     return this.prepareIntent(claims, semantic, input, preflight, auction.assetAddress as Address, auction.seller as Address);
   }
 
-  async prepareClaim(claims: AgentTokenClaims, input: IntentInput & { escrowAddress: Address; claimId: string; amount: string; recipient?: Address }) {
+  private async replayClaimIntent(claims: AgentTokenClaims, input: IntentInput & {
+    claimId: string;
+    escrowAddress?: Address;
+    amount?: string;
+    recipient?: Address;
+  }) {
+    const [existing] = await this.db.select().from(agentIntents).where(and(
+      eq(agentIntents.agentId, claims.agentId),
+      eq(agentIntents.idempotencyKey, input.idempotencyKey),
+    )).limit(1);
+    if (!existing) return undefined;
+    const saved = existing.input as IntentInput;
+    const sameAddress = (requested: unknown, recorded: unknown) => typeof requested !== 'string'
+      || (typeof recorded === 'string' && requested.toLowerCase() === recorded.toLowerCase());
+    const compatible = existing.action === 'CLAIM_SETTLEMENT'
+      && String(saved.claimId) === input.claimId
+      && (input.amount === undefined || String(saved.amount) === input.amount)
+      && sameAddress(input.escrowAddress, saved.escrowAddress)
+      && sameAddress(input.recipient ?? claims.wallet, saved.recipient);
+    if (!compatible) {
+      throw new AppError(409, 'IDEMPOTENCY_CONFLICT', 'The idempotency key was already used with different claim semantics');
+    }
+    const steps = await this.db.select().from(agentIntentSteps).where(eq(agentIntentSteps.intentId, existing.id)).orderBy(asc(agentIntentSteps.stepIndex));
+    return publicIntent(existing, steps);
+  }
+
+  async prepareClaim(claims: AgentTokenClaims, input: IntentInput & {
+    claimId: string;
+    escrowAddress?: Address;
+    amount?: string;
+    recipient?: Address;
+  }) {
     this.requireScope(claims, 'claims:write');
-    const replay = await this.replayIntent(claims, 'CLAIM_SETTLEMENT', input);
+    const replay = await this.replayClaimIntent(claims, input);
     if (replay) return replay;
-    const claim = await this.store.getSettlementClaim(input.claimId, input.escrowAddress);
-    if (!claim) throw new AppError(404, 'CLAIM_NOT_FOUND', 'Settlement claim was not found');
+    const candidates = (await this.store.listSettlementClaims(claims.wallet)).filter((claim) =>
+      claim.claimId === input.claimId
+      && (!input.escrowAddress || claim.escrowAddress === input.escrowAddress.toLowerCase()));
+    if (candidates.length === 0) throw new AppError(404, 'CLAIM_NOT_FOUND', 'No indexed settlement claim for this wallet matches the requested claim identifier');
+    if (candidates.length > 1) {
+      throw new AppError(409, 'CLAIM_ESCROW_AMBIGUOUS', 'The claim identifier exists in more than one RWCAR escrow; provide escrowAddress', {
+        candidates: candidates.map((claim) => ({ claimId: claim.claimId, escrowAddress: claim.escrowAddress, remaining: claim.remaining })),
+      });
+    }
+    const claim = candidates[0]!;
+    const normalizedInput: IntentInput & { escrowAddress: Address; claimId: string; amount: string; recipient: Address } = {
+      ...input,
+      escrowAddress: claim.escrowAddress as Address,
+      amount: input.amount ?? claim.remaining,
+      recipient: input.recipient ?? claims.wallet,
+    };
     const preflight = await this.preflight.claimSettlement({
       actor: claims.wallet,
-      escrowAddress: input.escrowAddress,
-      claimId: input.claimId,
-      amount: input.amount,
-      ...(input.recipient ? { recipient: input.recipient } : {}),
+      escrowAddress: normalizedInput.escrowAddress,
+      claimId: normalizedInput.claimId,
+      amount: normalizedInput.amount,
+      recipient: normalizedInput.recipient,
     });
-    return this.prepareIntent(claims, 'CLAIM_SETTLEMENT', input, preflight, claim.tokenAddress as Address);
+    return this.prepareIntent(claims, 'CLAIM_SETTLEMENT', normalizedInput, preflight, claim.tokenAddress as Address);
   }
 
   async prepareMargin(claims: AgentTokenClaims, input: IntentInput) {
@@ -1523,29 +1633,34 @@ export class AgentService {
     if (counterparty && constraints.allowedCounterparties.length > 0
       && !constraints.allowedCounterparties.map((value) => value.toLowerCase()).includes(counterparty.toLowerCase())) reasons.push('COUNTERPARTY_NOT_ALLOWED');
     const recipient = typeof input.recipient === 'string' ? input.recipient.toLowerCase() : undefined;
-    if (recipient && !constraints.allowedRecipients.map((value) => value.toLowerCase()).includes(recipient)) {
+    const selfRecipient = mandate.wallet.toLowerCase();
+    if (recipient && recipient !== selfRecipient
+      && !constraints.allowedRecipients.map((value) => value.toLowerCase()).includes(recipient)) {
       reasons.push('RECIPIENT_NOT_ALLOWED');
     }
     if (!isExecutablePreflight(preflight)) reasons.push(...preflight.blockingReasons);
     if (reasons.length > 0) return { decision: 'DENIED' as const, reason: [...new Set(reasons)].join(','), notional, constraints };
-    const forcedHuman = ['VAULT_WITHDRAW', 'START_AUCTION', 'BUY_AUCTION', 'CLAIM_COLLATERAL', 'CLAIM_ORACLE_FALLBACK', 'MARGIN_ACTION'].includes(action);
-    const human = forcedHuman || notional > BigInt(constraints.autoExecuteUpTo);
+    const approval = resolveMandateApproval(constraints, action, notional);
     return {
-      decision: human ? 'HUMAN_REQUIRED' as const : 'AUTO_APPROVED' as const,
-      reason: human ? (forcedHuman ? 'RISK_SENSITIVE_ACTION' : 'AUTO_EXECUTE_LIMIT_EXCEEDED') : null,
+      ...approval,
       notional,
       constraints,
     };
   }
 
-  private assertTrustedExecutionPlan(
+  private async assertTrustedExecutionPlan(
     action: AgentAction,
     input: IntentInput,
     preflight: PreflightResultV2,
     wallet: Address,
   ) {
     const market = this.market();
-    const escrow = this.config.SETTLEMENT_ESCROW_V2_ADDRESS?.toLowerCase();
+    const settlementEscrows = new Set<string>();
+    if (this.config.SETTLEMENT_ESCROW_V2_ADDRESS) settlementEscrows.add(this.config.SETTLEMENT_ESCROW_V2_ADDRESS.toLowerCase());
+    if (action === 'CLAIM_SETTLEMENT' && this.config.MARGIN_ENGINE_V2_ADDRESS) {
+      const marginMetadata = await this.chain.marginMetadata(this.config.MARGIN_ENGINE_V2_ADDRESS as Address).catch(() => null);
+      if (marginMetadata?.settlementEscrow) settlementEscrows.add(marginMetadata.settlementEscrow.toLowerCase());
+    }
     const margin = this.config.MARGIN_ENGINE_V2_ADDRESS?.toLowerCase();
     const settlement = this.config.V2_SETTLEMENT_TOKEN_ADDRESS.toLowerCase();
     const approvalTokens = new Set([
@@ -1577,7 +1692,7 @@ export class AgentService {
       let functionName: string;
       try {
         if (action === 'CLAIM_SETTLEMENT') {
-          if (!escrow || transaction.to.toLowerCase() !== escrow) throw new Error('destination');
+          if (!settlementEscrows.has(transaction.to.toLowerCase())) throw new Error('destination');
           functionName = decodeFunctionData({ abi: settlementEscrowV2Abi, data: transaction.data as Hex }).functionName;
           if (functionName !== 'claim') throw new Error('selector');
         } else if (action === 'MARGIN_ACTION') {
@@ -1630,7 +1745,7 @@ export class AgentService {
     if (replay) return replay;
 
     const policy = this.evaluatePolicy(mandate, action, input, preflight, asset, counterparty);
-    if (policy.decision !== 'DENIED') this.assertTrustedExecutionPlan(action, input, preflight, claims.wallet);
+    if (policy.decision !== 'DENIED') await this.assertTrustedExecutionPlan(action, input, preflight, claims.wallet);
     const steps = policy.decision === 'DENIED' ? [] : [
       ...preflight.requiredApprovals.map((approval) => ({
         kind: 'APPROVAL',
@@ -2020,7 +2135,7 @@ export class AgentService {
       throw new AppError(409, code, 'Fresh preflight blocked execution', { blockingReasons: preflight.blockingReasons });
     }
     try {
-      this.assertTrustedExecutionPlan(intent.action as AgentAction, intent.input as IntentInput, preflight, agent.walletAddress as Address);
+      await this.assertTrustedExecutionPlan(intent.action as AgentAction, intent.input as IntentInput, preflight, agent.walletAddress as Address);
     } catch (error) {
       if (error instanceof AppError) await this.failIntent(intent, error.code, error.message);
       throw error;
