@@ -1,4 +1,4 @@
-const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001').replace(/\/$/, '');
+export const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001').replace(/\/$/, '');
 
 export async function apiRequest(path, { token, body, method } = {}) {
   const response = await fetch(`${API_URL}${path}`, {

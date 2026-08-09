@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLogin, usePrivy, useWallets } from '@privy-io/react-auth';
 import { apiRequest } from './lib/api.js';
 import { TRUSTED_V2_MANIFEST } from './config/trusted-v2-manifest.js';
+import AgentConsole from './AgentConsole.jsx';
 import {
   MONAD_CHAIN_ID,
   ZERO_ADDRESS,
@@ -66,6 +67,7 @@ const navigation = [
   { id: 'vault', label: 'Vault', icon: 'vault', version: 'V2' },
   { id: 'auctions', label: 'Auctions', icon: 'auction', version: 'V2' },
   { id: 'margin', label: 'Margin', icon: 'margin', version: 'V2' },
+  { id: 'agents', label: 'Agents', icon: 'agent', version: 'AI' },
 ];
 
 function Icon({ name, size = 18 }) {
@@ -87,6 +89,7 @@ function Icon({ name, size = 18 }) {
     vault: <><path d="M3 7h18v14H3z"/><path d="M7 7V4h10v3M8 13h8M12 10v6"/></>,
     auction: <><path d="m14 4 6 6M11 7l6 6M4 20l8-8M3 21h7"/></>,
     margin: <><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-7"/><path d="M17 6h2v2"/></>,
+    agent: <><path d="M12 3v3M8 3h8M6 9h12a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3Z"/><circle cx="8.5" cy="14" r="1"/><circle cx="15.5" cy="14" r="1"/><path d="M8 18h8"/></>,
     x: <path d="M18 6 6 18M6 6l12 12"/>,
   };
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name] || <circle cx="12" cy="12" r="9"/>}</svg>;
@@ -1219,8 +1222,9 @@ function AppLive() {
     if (page === 'portfolio') return <VersionedPortfolio version={portfolioVersion} setVersion={setPortfolioVersion} v2State={v2State} retryV2={detectV2} v2Portfolio={v2Portfolio} claims={settlementClaims} assets={v2DisplayAssets} address={address} busy={busy} v2Loading={!v2WalletLoaded} onV2Action={executeV2Action} settlement={settlement} chainClock={v2ChainClock} v1={<Portfolio positions={positions} assets={assets} address={address} onRepurchase={repurchase} onCancel={cancel} onExpire={expire} onDefault={markDefault} busy={busy} loading={!positionsLoaded}/>}/>;
     if (page === 'vault') return v2State === 'ready' ? <VaultPage balances={vaultBalances} assets={v2DisplayAssets} address={address} loading={!v2WalletLoaded} busy={busy} onAction={executeV2Action} entryEnabled={isolatedEntryEnabled}/> : <div className="page-view"><V2Unavailable state={v2State} onRetry={detectV2}/></div>;
     if (page === 'auctions') return v2State === 'ready' ? <AuctionsPage auctions={isolatedRepoAuctions} assets={v2DisplayAssets} address={address} loading={!v2PublicLoaded} busy={busy} onAction={executeV2Action} settlement={settlement} chainClock={v2ChainClock}/> : <div className="page-view"><V2Unavailable state={v2State === 'loading' ? 'loading' : 'unavailable'} onRetry={detectV2}/></div>;
+    if (page === 'agents') return <AgentConsole authenticated={authenticated} adminAddress={address} login={login} getAccessToken={getAccessToken} assets={v2DisplayAssets} durations={v2Config?.terms?.allowedDurations || []}/>;
     return (v2State === 'ready' || marginExitAvailable) ? <MarginPage accounts={marginAccounts} auctions={marginAuctions} assets={marginPageAssets} address={address} loading={!v2WalletLoaded || !v2PublicLoaded} busy={busy} onAction={executeV2Action} settlement={settlement} deployed={marginExitAvailable} entryEnabled={v2State === 'ready' && v2Config?.features?.crossMargin === true} readiness={v2Config?.readiness?.crossMargin} durations={v2Config?.terms?.allowedDurations || []} chainClock={v2ChainClock}/> : <div className="page-view"><V2Unavailable state={v2State} onRetry={detectV2}/></div>;
-  }, [page, positions, offers, activity, assets, address, authenticated, busy, config, lastPreflight, publicLoaded, positionsLoaded, activityLoaded, marketVersion, portfolioVersion, createVersion, preferredMarginAccount, v2State, v2Config, v2Offers, v2Portfolio, settlementClaims, v2ChainClock, vaultBalances, isolatedRepoAuctions, marginAuctions, marginAccounts, marginPageAssets, marginExitAvailable, v2DisplayAssets, v2Assets, isolatedEntryEnabled, v2PublicLoaded, v2WalletLoaded]);
+  }, [page, positions, offers, activity, assets, address, authenticated, busy, config, lastPreflight, publicLoaded, positionsLoaded, activityLoaded, marketVersion, portfolioVersion, createVersion, preferredMarginAccount, v2State, v2Config, v2Offers, v2Portfolio, settlementClaims, v2ChainClock, vaultBalances, isolatedRepoAuctions, marginAuctions, marginAccounts, marginPageAssets, marginExitAvailable, v2DisplayAssets, v2Assets, isolatedEntryEnabled, v2PublicLoaded, v2WalletLoaded, getAccessToken, login]);
 
   if (page === 'landing') return <Landing go={go} auth={auth} compliance={compliance} complianceState={complianceState}/>;
   return <div className="app-shell"><Header page={page} go={go} auth={auth} compliance={compliance} complianceState={complianceState}/><Sidebar page={page} go={go} configured={Boolean(config?.contracts?.repoMarket)} v2State={v2State}/><main className="main-content">{error && <div className="runtime-banner error">{error}</div>}{syncIssue && !error && <div className="runtime-banner warning"><span>Live data is temporarily unavailable. Retrying automatically.</span><button type="button" onClick={() => void (v2State === 'ready' ? Promise.allSettled([refreshLiveData(), refreshV2Data()]) : refreshLiveData())}>Retry now</button></div>}{notice && <div className="runtime-banner success"><span>{typeof notice === 'string' ? notice : notice.message}</span>{typeof notice === 'object' && notice.txHash && <a href={`${config?.chain?.explorerUrl || 'https://testnet.monadscan.com'}/tx/${notice.txHash}`} target="_blank" rel="noreferrer">View transaction</a>}</div>}<ExecutionStatus execution={v2Execution} explorerUrl={v2Config?.chain?.explorerUrl || config?.chain?.explorerUrl}/>{current}</main></div>;
