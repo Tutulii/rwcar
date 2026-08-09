@@ -100,12 +100,14 @@ describe('agent service isolation', () => {
     assert.doesNotMatch(console, /signTypedData\(challenge(?:\.typedData)?, \{ address: adminAddress \}\)/);
   });
 
-  it('keeps judge onboarding to three guided least-privilege steps', () => {
+  it('keeps onboarding to three guided steps with an explicit access choice', () => {
     const console = read('src/AgentConsole.jsx');
     assert.match(console, /Step 1 of 3/);
     assert.match(console, /Verify Identity & Sign Mandate/);
     assert.match(console, /Generate Read-only Credential/);
-    assert.match(console, /const DEFAULT_SCOPES = \['protocol:read'\]/);
+    assert.match(console, /Generate Read \+ Trade Credential/);
+    assert.match(console, /const READ_SCOPES = \['protocol:read'\]/);
+    assert.match(console, /const READ_WRITE_SCOPES = SCOPES\.map/);
     assert.match(console, /className="agent-advanced-console"/);
     assert.match(console, /Advanced institutional controls/);
   });

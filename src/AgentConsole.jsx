@@ -33,11 +33,13 @@ const SCOPES = [
   ['margin:write', 'Margin'],
   ['intents:execute', 'Execute'],
 ];
+const READ_SCOPES = ['protocol:read'];
+const READ_WRITE_SCOPES = SCOPES.map(([value]) => value);
 
 const DEFAULT_ACTIONS = ACTIONS
   .map(([value]) => value)
   .filter((value) => !['START_AUCTION', 'BUY_AUCTION', 'FINALIZE_FAILED_AUCTION', 'MARGIN_ACTION'].includes(value));
-const DEFAULT_SCOPES = ['protocol:read'];
+const DEFAULT_SCOPES = READ_SCOPES;
 
 const short = (value) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : 'Not assigned';
 const dateTime = (value) => value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
@@ -107,6 +109,7 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
   const [credentialLabel, setCredentialLabel] = useState('Primary MCP credential');
   const [credentialScopes, setCredentialScopes] = useState(DEFAULT_SCOPES);
   const [credentialReveal, setCredentialReveal] = useState(null);
+  const [accessMode, setAccessMode] = useState('read');
   const [selectedActions, setSelectedActions] = useState(DEFAULT_ACTIONS);
   const [selectedAssets, setSelectedAssets] = useState([]);
   const [manualAsset, setManualAsset] = useState('');
@@ -355,14 +358,15 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
     return { agentId: selectedId };
   });
 
-  const issueReadOnlyCredential = () => run('quick-credential', async () => {
-    const scopes = ['protocol:read'];
+  const issueGuidedCredential = () => run('quick-credential', async () => {
+    const canTrade = accessMode === 'trade';
+    const scopes = canTrade ? READ_WRITE_SCOPES : READ_SCOPES;
     const created = await adminRequest(`/v2/agents/${selectedId}/credentials`, {
-      body: { label: 'Judge read-only MCP credential', scopes },
+      body: { label: canTrade ? 'Read + trade MCP credential' : 'Read-only MCP credential', scopes },
     });
     setCredentialScopes(scopes);
     setCredentialReveal(created);
-    setNotice('Read-only credential created. Copy the secret now—it is shown only once.');
+    setNotice(`${canTrade ? 'Read + trade' : 'Read-only'} credential created. Copy the secret now—it is shown only once.`);
     return { agentId: selectedId };
   });
 
@@ -400,16 +404,23 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
   const agent = detail?.agent;
   const activeMandate = detail?.mandates?.find((item) => item.status === 'ACTIVE' && new Date(item.expiresAt) > new Date());
   const activeCredentials = detail?.credentials?.filter((item) => item.status === 'ACTIVE') || [];
-  const readCredential = activeCredentials.find((item) => item.scopes?.includes('protocol:read'));
+  const guidedCredential = activeCredentials
+    .filter((item) => item.scopes?.includes('protocol:read'))
+    .sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0))[0];
+  const guidedCredentialCanTrade = guidedCredential?.scopes?.some((scope) => scope !== 'protocol:read');
   const signerConfigured = Boolean(SIGNER_ID && POLICY_ID);
   const authorizationReady = Boolean(agent?.cviActive && activeMandate && agent.status === 'ACTIVE');
-  const guidedStep = !agent?.walletAddress ? 1 : !authorizationReady ? 2 : !readCredential ? 3 : 4;
+  const guidedStep = !agent?.walletAddress ? 1 : !authorizationReady ? 2 : !guidedCredential ? 3 : 4;
+  const accessModePicker = <div className="agent-access-options" role="group" aria-label="Agent access level">
+    <button type="button" className={accessMode === 'read' ? 'selected' : ''} onClick={() => setAccessMode('read')}><span>Read only</span><strong>Observe & analyze</strong><small>Markets, verified assets, eligibility and protocol data. Cannot move funds.</small></button>
+    <button type="button" className={accessMode === 'trade' ? 'selected' : ''} onClick={() => setAccessMode('trade')}><span>Read + trade</span><strong>Operate within mandate</strong><small>Read data and prepare or execute allowed repo actions within signed limits.</small></button>
+  </div>;
   const credentialRevealPanel = credentialReveal && <div className="agent-secret-reveal"><div><strong>Save this secret now</strong><button type="button" onClick={() => setCredentialReveal(null)}>Hide permanently</button></div><label>Client ID<span><code>{credentialReveal.clientId}</code><button type="button" onClick={() => copy(credentialReveal.clientId)}>Copy</button></span></label><label>Client secret<span><code>{credentialReveal.clientSecret}</code><button type="button" onClick={() => copy(credentialReveal.clientSecret)}>Copy</button></span></label><label>OAuth resource<span><code>{API_URL}/mcp</code><button type="button" onClick={() => copy(`${API_URL}/mcp`)}>Copy</button></span></label><p>Store the client ID and secret in the AI agent's secret manager. The agent exchanges them for five-minute access tokens.</p></div>;
 
   return <div className="page-view agent-console">
     <div className="agent-console-heading">
       <div><span className="section-eyebrow">AI-ready repo market</span><h2>Connect an AI Agent</h2><p>Give an agent safe, verified access to RWCAR in three guided steps.</p></div>
-      <div className="agent-discovery-links"><span>3-step setup</span><span>Real Cleanverse checks</span><span>Read-only by default</span></div>
+      <div className="agent-discovery-links"><span>3-step setup</span><span>Real Cleanverse checks</span><span>User-selected access</span></div>
     </div>
 
     {error && <div className="runtime-banner error agent-banner"><span>{error}</span><button type="button" onClick={() => setError('')}>Dismiss</button></div>}
@@ -433,7 +444,7 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
             <div className="agent-setup-track">
               <SetupStep number="1" title="Secure agent" complete={Boolean(agent.walletAddress)} detail={agent.walletAddress ? 'Policy wallet ready' : 'Create wallet'}/>
               <SetupStep number="2" title="Verify & authorize" complete={authorizationReady} detail={authorizationReady ? 'CVI + mandate active' : 'One signature'}/>
-              <SetupStep number="3" title="Connect AI" complete={Boolean(readCredential)} detail={readCredential ? 'Read-only credential ready' : 'Generate access'}/>
+              <SetupStep number="3" title="Connect AI" complete={Boolean(guidedCredential)} detail={guidedCredential ? `${guidedCredentialCanTrade ? 'Read + trade' : 'Read-only'} ready` : 'Choose access'}/>
             </div>
           </section>
 
@@ -441,8 +452,8 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
             <div className="agent-quickstart-progress"><span>{guidedStep === 4 ? 'Ready' : `Step ${guidedStep} of 3`}</span><div>{[1, 2, 3].map((step) => <i key={step} className={guidedStep > step ? 'complete' : guidedStep === step ? 'current' : ''}/>)}</div></div>
             {guidedStep === 1 && <div className="agent-quickstart-action"><div className="agent-quickstart-number">1</div><div className="agent-quickstart-copy"><span>Secure identity</span><h3>Create the agent wallet</h3><p>RWCAR creates one isolated wallet and attaches the reviewed deny-by-default signing policy.</p><button className="button primary" type="button" disabled={Boolean(working) || !signerConfigured} onClick={createDedicatedWallet}>{working === 'create-wallet' ? 'Creating secure wallet…' : 'Create Secure Wallet'}</button></div></div>}
             {guidedStep === 2 && <div className="agent-quickstart-action"><div className="agent-quickstart-number">2</div><div className="agent-quickstart-copy"><span>Cleanverse + authority</span><h3>{activeMandate ? 'Finish the live verification' : 'Verify and authorize the agent'}</h3><p>{activeMandate ? 'The mandate exists. Run the final live CVI, CVA and policy-pool check.' : 'One click enrolls the agent A-Pass, then asks the institution administrator for one clear mandate signature.'}</p><div className="agent-quickstart-facts"><span>Real UAT A-Pass</span><span>RWRN01 only</span><span>7-day mandate</span></div><button className="button primary" type="button" disabled={Boolean(working) || !institutionAdminWallet} onClick={activeMandate ? refreshCompliance : verifyAndAuthorize}>{working === 'quick-authorize' || working === 'refresh-compliance' ? 'Verifying live controls…' : activeMandate ? 'Complete Live Verification' : 'Verify Identity & Sign Mandate'}</button><small>The wallet prompt must show the institution administrator—not the agent wallet.</small></div></div>}
-            {guidedStep === 3 && <div className="agent-quickstart-action"><div className="agent-quickstart-number">3</div><div className="agent-quickstart-copy"><span>Connect your AI</span><h3>Generate a read-only credential</h3><p>This credential is enough for the judge flow and cannot create or execute transactions.</p><div className="agent-quickstart-facts"><span>get_protocol_info</span><span>list_verified_assets</span><span>check_eligibility</span></div><button className="button primary" type="button" disabled={Boolean(working)} onClick={issueReadOnlyCredential}>{working === 'quick-credential' ? 'Creating credential…' : 'Generate Read-only Credential'}</button></div></div>}
-            {guidedStep === 4 && <div className="agent-quickstart-action ready"><div className="agent-quickstart-number">✓</div><div className="agent-quickstart-copy"><span>Connection ready</span><h3>Your AI agent can join RWCAR</h3><p>Store the client ID and secret in OpenClaw or Hermes. It will exchange them for short-lived access tokens.</p><div className="agent-connect-grid"><a href={`${API_URL}/agent-skill/SKILL.md`} target="_blank" rel="noreferrer"><span>Agent instructions</span><strong>SKILL.md ↗</strong></a><div><span>MCP endpoint</span><strong>{API_URL}/mcp</strong></div></div>{!credentialReveal && <button className="button secondary" type="button" disabled={Boolean(working)} onClick={issueReadOnlyCredential}>{working === 'quick-credential' ? 'Creating…' : 'Issue another read-only credential'}</button>}</div></div>}
+            {guidedStep === 3 && <div className="agent-quickstart-action"><div className="agent-quickstart-number">3</div><div className="agent-quickstart-copy"><span>Connect your AI</span><h3>Choose what the agent can do</h3><p>The institution administrator chooses the access level. Trading access is still restricted by the signed mandate, CVI/CVA compliance, and approval limits.</p>{accessModePicker}<button className="button primary" type="button" disabled={Boolean(working)} onClick={issueGuidedCredential}>{working === 'quick-credential' ? 'Creating credential…' : accessMode === 'trade' ? 'Generate Read + Trade Credential' : 'Generate Read-only Credential'}</button></div></div>}
+            {guidedStep === 4 && <div className="agent-quickstart-action ready"><div className="agent-quickstart-number">✓</div><div className="agent-quickstart-copy"><span>{guidedCredentialCanTrade ? 'Read + trade access ready' : 'Read-only access ready'}</span><h3>Your AI agent can join RWCAR</h3><p>Store the client ID and secret in OpenClaw or Hermes. It will exchange them for short-lived access tokens.</p><div className="agent-connect-grid"><a href={`${API_URL}/agent-skill/SKILL.md`} target="_blank" rel="noreferrer"><span>Agent instructions</span><strong>SKILL.md ↗</strong></a><div><span>MCP endpoint</span><strong>{API_URL}/mcp</strong></div></div>{!credentialReveal && <><p className="agent-add-credential">Need a different access level? Choose it and generate a fresh credential.</p>{accessModePicker}<button className="button secondary" type="button" disabled={Boolean(working)} onClick={issueGuidedCredential}>{working === 'quick-credential' ? 'Creating…' : accessMode === 'trade' ? 'Generate Read + Trade Credential' : 'Generate Read-only Credential'}</button></>}</div></div>}
             {credentialRevealPanel}
           </section>
 
@@ -451,7 +462,7 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
             <div className="agent-advanced-sections">
 
           <section className="card agent-section">
-            <div className="agent-section-head"><div><span>Agent administration</span><h3>Status & execution funding</h3><p>Operational controls for transaction-capable agents. The guided judge credential remains read-only.</p></div><AgentState value={agent.status}/></div>
+            <div className="agent-section-head"><div><span>Agent administration</span><h3>Status & execution funding</h3><p>Operational controls for transaction-capable agents. Every credential remains bounded by its signed mandate.</p></div><AgentState value={agent.status}/></div>
             {agent.walletAddress && <div className={`agent-gas-health ${detail.walletHealth?.gasReady ? 'ready' : 'empty'}`}><span>Execution gas</span><strong>{formatMon(detail.walletHealth?.nativeBalance)}</strong><small>{detail.walletHealth?.gasReady ? 'Monad signer ready' : 'Fund this address with testnet MON before execution'}</small></div>}
             <div className="agent-status-actions">
               {agent.status === 'ACTIVE' && <button className="button secondary small" disabled={Boolean(working)} onClick={() => changeStatus('PAUSED')}>Pause agent</button>}
