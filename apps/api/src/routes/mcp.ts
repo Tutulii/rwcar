@@ -65,7 +65,11 @@ const ExecutionStatus = z.object({ intentId: z.string().uuid() });
 const ListAuctions = z.object({ includeClosed: z.boolean().default(false) });
 
 function toolResult(value: unknown) {
-  const structuredContent = { result: value };
+  // MCP already places structuredContent beneath the tool-call result. Avoid
+  // an extra `result.result` wrapper that forces agents to special-case RWCAR.
+  const structuredContent = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : { value };
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(structuredContent) }],
     structuredContent,
@@ -94,7 +98,7 @@ export function createRwcarMcpServer(service: AgentService, claims: AgentClaims)
 
   server.registerTool('get_protocol_info', {
     title: 'Get RWCAR protocol information',
-    description: 'Read Monad chain, verified contracts, settlement asset, deployment health, and agent safety posture.',
+    description: 'Read Monad chain, verified contracts, settlement asset, signed-oracle health, role matrix, and agent safety posture.',
     inputSchema: Empty,
     annotations: { readOnlyHint: true, idempotentHint: true },
   }, safeTool(async () => service.protocolInfo(claims)));
@@ -129,14 +133,14 @@ export function createRwcarMcpServer(service: AgentService, claims: AgentClaims)
 
   server.registerTool('get_portfolio', {
     title: 'Get agent portfolio',
-    description: 'Read offers, positions, tri-party vault buckets, settlement claims, and recent finalized activity for the bound agent wallet.',
+    description: 'Read offers, positions with derived OVERDUE state, valuation and keeper status, role-specific next actions, vault buckets, claims, and finalized activity.',
     inputSchema: Empty,
     annotations: { readOnlyHint: true, idempotentHint: true },
   }, safeTool(async () => service.portfolio(claims)));
 
   server.registerTool('get_margin_accounts', {
     title: 'Get shared-collateral margin accounts',
-    description: 'Read netting sets, exposures, margin calls, and lender relationships involving the bound agent wallet.',
+    description: 'Read netting sets, public fundable accounts, wallet/repo/margin-vault collateral sources, ordered workflow, exposures, calls, and lender relationships.',
     inputSchema: Empty,
     annotations: { readOnlyHint: true, idempotentHint: true },
   }, safeTool(async () => service.marginAccounts(claims)));
@@ -178,7 +182,7 @@ export function createRwcarMcpServer(service: AgentService, claims: AgentClaims)
 
   server.registerTool('prepare_position_action', {
     title: 'Prepare a repo position action',
-    description: 'Create a repay, auction-start, failed-auction collateral claim, or stale-oracle fallback intent with lifecycle gates.',
+    description: 'Create a repay, permissionless overdue auction-start, lender claim, or stale-oracle fallback intent. Signed valuations resolve server-side; callers never invent one.',
     inputSchema: AgentPositionActionSchema,
     annotations: { destructiveHint: false, idempotentHint: true },
   }, safeTool(async (input) => service.preparePositionAction(claims, input as Parameters<AgentService['preparePositionAction']>[1])));
@@ -199,7 +203,7 @@ export function createRwcarMcpServer(service: AgentService, claims: AgentClaims)
 
   server.registerTool('prepare_margin_action', {
     title: 'Prepare a cross-margin action',
-    description: 'Create a shared-collateral margin intent with netting-set, oracle, LTV, exposure, compliance, and mandate checks. Margin actions need human approval.',
+    description: 'Create a shared-collateral margin intent with ordered prerequisites, oracle/LTV/compliance checks, and human approval. DEPOSIT can safely compose Repo Vault AVAILABLE via collateralSource.',
     inputSchema: AgentMarginActionSchema,
     annotations: { destructiveHint: false, idempotentHint: true },
   }, safeTool(async (input) => service.prepareMargin(claims, input)));

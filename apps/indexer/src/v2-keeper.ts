@@ -27,8 +27,23 @@ type V2JobAction =
   | 'startInKindOracleFallback'
   | 'materializeLiquidationClaim';
 
+const V2_JOB_ACTIONS: readonly V2JobAction[] = [
+  'finalizeOfferExpiry',
+  'startAuction',
+  'finalizeFailedAuction',
+  'declarePaymentDefault',
+  'startMarginLiquidation',
+  'finalizeFailedMarginAuction',
+  'startInKindOracleFallback',
+  'materializeLiquidationClaim',
+];
+
 export function automationRetryDelayMs(attempt: number) {
   return Math.min(15 * 60_000, 5_000 * (2 ** Math.max(0, attempt - 1)));
+}
+
+export function durableLifecycleRetryDelayMs(attempt: number) {
+  return Math.min(60_000, automationRetryDelayMs(attempt));
 }
 
 export function isAutomationLeaseClaimable(
@@ -44,16 +59,7 @@ export function isAutomationLeaseClaimable(
 }
 
 export function isSupportedV2JobAction(action: string): action is V2JobAction {
-  return [
-    'finalizeOfferExpiry',
-    'startAuction',
-    'finalizeFailedAuction',
-    'declarePaymentDefault',
-    'startMarginLiquidation',
-    'finalizeFailedMarginAuction',
-    'startInKindOracleFallback',
-    'materializeLiquidationClaim',
-  ].includes(action);
+  return V2_JOB_ACTIONS.includes(action as V2JobAction);
 }
 
 export function isSignedAutomationTransaction(value: unknown): value is Hex {
@@ -133,6 +139,7 @@ export class V2AutomationWorker {
       or(
         and(inArray(automationJobs.status, ['PENDING', 'RETRY', 'SUBMITTED']), lte(automationJobs.nextAttemptAt, now)),
         and(eq(automationJobs.status, 'RUNNING'), lt(automationJobs.lockedAt, staleLease)),
+        and(eq(automationJobs.status, 'DEAD'), inArray(automationJobs.action, [...V2_JOB_ACTIONS])),
       ),
     )).orderBy(asc(automationJobs.nextAttemptAt)).limit(MAX_BATCH);
 
@@ -149,6 +156,7 @@ export class V2AutomationWorker {
         or(
           inArray(automationJobs.status, ['PENDING', 'RETRY', 'SUBMITTED']),
           and(eq(automationJobs.status, 'RUNNING'), lt(automationJobs.lockedAt, staleLease)),
+          and(eq(automationJobs.status, 'DEAD'), inArray(automationJobs.action, [...V2_JOB_ACTIONS])),
         ),
       )).returning();
       if (row) claimed.push(row);
@@ -220,11 +228,18 @@ export class V2AutomationWorker {
   }
 
   private async fail(job: typeof automationJobs.$inferSelect, error: unknown) {
-    const exhausted = job.attempts >= job.maxAttempts;
+    // Every supported lifecycle transition is idempotent and is cancelled by
+    // its terminal chain event. Oracle/RPC/compliance outages must therefore
+    // never turn an overdue position into a permanently dead automation row.
+    // Only malformed/unsupported jobs are allowed to exhaust into the DLQ.
+    const durableLifecycle = isSupportedV2JobAction(job.action);
+    const exhausted = !durableLifecycle && job.attempts >= job.maxAttempts;
     const message = error instanceof Error ? error.message.slice(0, 2_000) : String(error).slice(0, 2_000);
     await this.db.update(automationJobs).set({
       status: exhausted ? 'DEAD' : 'RETRY',
-      nextAttemptAt: new Date(Date.now() + automationRetryDelayMs(job.attempts)),
+      nextAttemptAt: new Date(Date.now() + (durableLifecycle
+        ? durableLifecycleRetryDelayMs(job.attempts)
+        : automationRetryDelayMs(job.attempts))),
       lockedBy: null,
       lockedAt: null,
       completedAt: exhausted ? new Date() : null,

@@ -264,6 +264,38 @@ export class StoreService {
     return valuation;
   }
 
+  async listLatestOracleValuations(assetAddresses: Address[] = [], oracleAddress?: Address) {
+    const normalizedAssets = uniqueStrings(assetAddresses.map((asset) => asset.toLowerCase()));
+    const rows = await this.db.select().from(oracleValuations).where(and(
+      eq(oracleValuations.invalidated, false),
+      normalizedAssets.length > 0 ? inArray(oracleValuations.assetAddress, normalizedAssets) : undefined,
+      oracleAddress ? eq(oracleValuations.oracleAddress, oracleAddress.toLowerCase()) : undefined,
+    )).orderBy(desc(oracleValuations.blockNumber));
+    return rows.filter((row, index) => rows.findIndex((candidate) =>
+      candidate.assetAddress === row.assetAddress
+      && candidate.settlementToken === row.settlementToken) === index);
+  }
+
+  async getAutomationJob(action: string, resourceType: string, resourceId: string, contractAddress?: Address) {
+    const [job] = await this.db.select().from(automationJobs).where(and(
+      eq(automationJobs.action, action),
+      eq(automationJobs.resourceType, resourceType),
+      eq(automationJobs.resourceId, resourceId),
+      contractAddress ? eq(automationJobs.contractAddress, contractAddress.toLowerCase()) : undefined,
+    )).orderBy(desc(automationJobs.updatedAt)).limit(1);
+    return job;
+  }
+
+  listAutomationJobsForResources(action: string, resourceType: string, resourceIds: string[], contractAddress?: Address) {
+    if (resourceIds.length === 0) return Promise.resolve([]);
+    return this.db.select().from(automationJobs).where(and(
+      eq(automationJobs.action, action),
+      eq(automationJobs.resourceType, resourceType),
+      inArray(automationJobs.resourceId, uniqueStrings(resourceIds)),
+      contractAddress ? eq(automationJobs.contractAddress, contractAddress.toLowerCase()) : undefined,
+    )).orderBy(desc(automationJobs.updatedAt));
+  }
+
   listSettlementClaims(wallet: Address) {
     return this.db.select().from(settlementClaims).where(eq(settlementClaims.beneficiary, wallet.toLowerCase()))
       .orderBy(desc(settlementClaims.createdAt));
@@ -291,24 +323,14 @@ export class StoreService {
         status: automationJobs.status,
         count: sql<number>`count(*)::int`,
       }).from(automationJobs).groupBy(automationJobs.action, automationJobs.status),
-      this.db.select({
-        oracleAddress: oracleValuations.oracleAddress,
-        assetAddress: oracleValuations.assetAddress,
-        priceE18: oracleValuations.priceE18,
-        nonce: oracleValuations.nonce,
-        observedAt: oracleValuations.observedAt,
-        validUntil: oracleValuations.validUntil,
-        digest: oracleValuations.digest,
-        txHash: oracleValuations.txHash,
-        blockNumber: oracleValuations.blockNumber,
-      }).from(oracleValuations).where(eq(oracleValuations.invalidated, false))
-        .orderBy(desc(oracleValuations.blockNumber)).limit(1),
+      this.listLatestOracleValuations(),
     ]);
     return {
       checkpoints,
       deployments,
       automationJobs: pendingJobs,
       latestOracleValuation: latestOracleValuations[0] ?? null,
+      latestOracleValuations,
     };
   }
 

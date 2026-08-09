@@ -41,6 +41,11 @@ const ApprovalChallengeSchema = z.object({ decision: z.enum(['APPROVE', 'REJECT'
 const AgentStatusSchema = z.object({ status: z.enum(['PAUSED', 'REVOKED', 'ACTIVE']) });
 const OfferQuoteQuery = z.object({ offerId: UintStringSchema, principalAmount: UintStringSchema });
 const AuctionQuery = z.object({ includeClosed: z.enum(['true', 'false']).optional().transform((value) => value === 'true') });
+const AgentEventQuery = z.object({
+  cursor: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+});
+const AgentEventStreamQuery = AgentEventQuery.pick({ cursor: true });
 const ExecutorLeaseSchema = z.object({ workerId: z.string().trim().min(3).max(100) });
 const ExecutorParams = z.object({ intentId: z.string().uuid() });
 const ExecutorRefreshSchema = ExecutorLeaseSchema;
@@ -197,6 +202,55 @@ export function registerAgentRoutes(
   app.get('/agent/v1/intents/:intentId', {
     schema: { tags: ['Agent API'], params: z.object({ intentId: z.string().uuid() }) },
   }, async (request) => service.intentStatus(await machine(request), (request.params as { intentId: string }).intentId));
+  app.get('/agent/v1/events', {
+    schema: { tags: ['Agent API'], querystring: AgentEventQuery },
+  }, async (request) => {
+    const query = request.query as z.infer<typeof AgentEventQuery>;
+    return service.eventFeed(await machine(request), query.cursor, query.limit);
+  });
+  app.get('/agent/v1/events/stream', {
+    schema: { tags: ['Agent API'], querystring: AgentEventStreamQuery },
+  }, async (request, reply) => {
+    const claims = await machine(request);
+    const headerCursor = request.headers['last-event-id'];
+    const parsedHeaderCursor = typeof headerCursor === 'string' ? z.string().uuid().safeParse(headerCursor) : undefined;
+    if (parsedHeaderCursor && !parsedHeaderCursor.success) {
+      throw new AppError(400, 'INVALID_EVENT_CURSOR', 'Last-Event-ID must be an RWCAR event UUID');
+    }
+    let cursor = (request.query as z.infer<typeof AgentEventStreamQuery>).cursor ?? parsedHeaderCursor?.data;
+    let closed = false;
+    request.raw.once('close', () => { closed = true; });
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    reply.raw.write('retry: 2000\n\n');
+    const closesAt = Date.now() + 55_000;
+    try {
+      while (!closed && Date.now() < closesAt) {
+        const feed = await service.eventFeed(claims, cursor, 100) as {
+          events: Array<{ id: string; eventType: string; [key: string]: unknown }>;
+          cursor: string | null;
+          hasMore: boolean;
+        };
+        for (const event of feed.events) {
+          reply.raw.write(`id: ${event.id}\nevent: ${event.eventType.toLowerCase().replaceAll('_', '.')}\ndata: ${JSON.stringify(event)}\n\n`);
+        }
+        cursor = feed.cursor ?? cursor;
+        if (feed.events.length === 0) reply.raw.write(`: heartbeat ${new Date().toISOString()}\n\n`);
+        if (!feed.hasMore) await new Promise((resolve) => setTimeout(resolve, 2_000));
+      }
+    } catch (error) {
+      if (!closed) reply.raw.write(`event: stream.error\ndata: ${JSON.stringify({ code: 'EVENT_STREAM_ERROR' })}\n\n`);
+      request.log.error({ err: error }, 'Agent event stream failed');
+    } finally {
+      if (!closed) reply.raw.end();
+    }
+    return reply;
+  });
 
   app.post('/agent/v1/intents/vault', {
     schema: { tags: ['Agent API'], body: AgentVaultActionSchema },

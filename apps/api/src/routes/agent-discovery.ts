@@ -34,6 +34,12 @@ export function buildAgentDiscovery(config: ApiConfig, manifest: Record<string, 
       grantTypes: ['client_credentials'],
     },
     openapi: endpoint(config.AGENT_ISSUER_URL, 'openapi.json'),
+    events: {
+      feed: endpoint(config.AGENT_ISSUER_URL, 'agent/v1/events'),
+      stream: endpoint(config.AGENT_ISSUER_URL, 'agent/v1/events/stream'),
+      protocol: 'SSE',
+      cursor: 'Last event UUID returned by the feed or SSE id field',
+    },
     skill: {
       manifest: endpoint(config.AGENT_ISSUER_URL, 'agent-skill/manifest.json'),
       instructions: endpoint(config.AGENT_ISSUER_URL, 'agent-skill/SKILL.md'),

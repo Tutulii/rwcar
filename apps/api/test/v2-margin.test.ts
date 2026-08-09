@@ -28,6 +28,17 @@ describe('V2 margin adapter', () => {
     assert.equal(normalizeMarginAction('MATERIALIZE_LIQUIDATION_CLAIM'), 'MATERIALIZE_LIQUIDATION_CLAIM');
   });
 
+  it('defaults margin deposits to safe AUTO collateral sourcing and permits explicit custody sources', () => {
+    const base = {
+      actor: '0x0000000000000000000000000000000000000001',
+      action: 'DEPOSIT' as const,
+      amount: '5000',
+    };
+    assert.equal(MarginActionV2Schema.parse(base).collateralSource, 'AUTO');
+    assert.equal(MarginActionV2Schema.parse({ ...base, collateralSource: 'REPO_VAULT' }).collateralSource, 'REPO_VAULT');
+    assert.equal(MarginActionV2Schema.safeParse({ ...base, collateralSource: 'UNTRUSTED' }).success, false);
+  });
+
   it('encodes materializeLiquidationClaim and never the obsolete claim adapter', () => {
     const data = encodeFunctionData({
       abi: marginEngineV2Abi,

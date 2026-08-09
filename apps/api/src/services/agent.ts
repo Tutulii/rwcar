@@ -25,7 +25,7 @@ import {
   type AgentScope,
   type PreflightResultV2,
 } from '@rwcar/shared';
-import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import {
   encodeFunctionData,
   decodeFunctionData,
@@ -66,6 +66,49 @@ type AgentDbTransaction = Parameters<Parameters<RwcarDb['transaction']>[0]>[0];
 
 const ACTIVE_INTENT_STATES = ['PREPARED', 'APPROVAL_REQUIRED', 'APPROVED', 'QUEUED', 'SIGNING', 'SUBMITTED', 'CONFIRMED', 'INDEXING'] as const;
 const ALLOWANCE_ONLY = new Set(['INSUFFICIENT_ALLOWANCE']);
+
+const BLOCKING_GUIDANCE: Record<string, { message: string; recovery: string }> = {
+  ACTION_NOT_ALLOWED: {
+    message: 'The active institutional mandate does not authorize this semantic action.',
+    recovery: 'Ask the institution administrator to replace the mandate with this action explicitly enabled.',
+  },
+  ASSET_NOT_ALLOWED: {
+    message: 'The asset is outside the active mandate or protocol allowlist.',
+    recovery: 'Choose a verified allowed asset or ask the administrator to replace the mandate.',
+  },
+  ROLE_NOT_ALLOWED: {
+    message: 'The bound wallet does not hold the on-chain role required for this action.',
+    recovery: 'Use the seller, lender, beneficiary, or eligible third-party wallet identified by the resource guidance.',
+  },
+  PREREQUISITE_MISSING: {
+    message: 'A required earlier workflow step or input is missing.',
+    recovery: 'Complete the listed prerequisite and prepare a new intent with a fresh idempotency key.',
+  },
+  INSUFFICIENT_BALANCE: {
+    message: 'Usable wallet and selected vault balances do not cover the requested amount.',
+    recovery: 'Fund the wallet, reduce the amount, or select AUTO/REPO_VAULT collateral sourcing for a margin deposit.',
+  },
+  ORACLE_STALE: {
+    message: 'The approved signed valuation is outside its live validity window.',
+    recovery: 'Wait for the server-managed oracle heartbeat and prepare again; agents never post arbitrary valuations.',
+  },
+  NOT_AT_MATURITY: {
+    message: 'The repayment grace deadline has not passed on Monad.',
+    recovery: 'Wait until the chain timestamp is strictly after repaymentDeadline, then prepare again.',
+  },
+  CVI_INELIGIBLE: {
+    message: 'The wallet does not satisfy the live Cleanverse policy pool.',
+    recovery: 'Refresh A-Pass/CVI eligibility for this wallet and asset before preparing again.',
+  },
+  POLICY_DENIED: {
+    message: 'Institutional policy denied the prepared action.',
+    recovery: 'Inspect the mandate and prepare a corrected bounded action.',
+  },
+  ADMIN_REJECTED: {
+    message: 'The institution administrator rejected this exact intent.',
+    recovery: 'Do not execute it. If the user still wants the action, revise the terms and prepare a new intent for review.',
+  },
+};
 
 const MARKET_FUNCTIONS: Record<Exclude<AgentAction, 'CLAIM_SETTLEMENT' | 'MARGIN_ACTION'>, Set<string>> = {
   VAULT_DEPOSIT: new Set(['depositCollateral']),
@@ -181,6 +224,125 @@ function isExecutablePreflight(preflight: PreflightResultV2) {
   return preflight.eligible || preflight.blockingReasons.every((reason) => ALLOWANCE_ONLY.has(reason));
 }
 
+function intentNextActions(state: AgentIntentState, reasons: string[], agentId: string, intentId: string) {
+  if (state === 'APPROVAL_REQUIRED') return [{
+    action: 'REQUEST_ADMIN_APPROVAL',
+    description: `Ask the institution administrator to review intent ${intentId} in the RWCAR Agent Console.`,
+    agentId,
+    intentId,
+  }];
+  if (state === 'PREPARED' || state === 'APPROVED') return [{
+    action: 'EXECUTE_INTENT',
+    description: 'Call execute_intent with this exact intentId and intentHash before expiry.',
+    intentId,
+  }];
+  if (['QUEUED', 'SIGNING', 'SUBMITTED', 'CONFIRMED', 'INDEXING'].includes(state)) return [{
+    action: 'GET_EXECUTION_STATUS',
+    description: 'Wait for the durable state event or poll get_execution_status; do not create a duplicate intent.',
+    intentId,
+  }];
+  if (state === 'COMPLETED') return [{
+    action: 'REFRESH_PROTOCOL_STATE',
+    description: 'Refresh portfolio, margin accounts, or auctions from the finalized projection.',
+  }];
+  const actions: Array<{ action: string; description: string }> = [];
+  if (reasons.includes('ACTION_NOT_ALLOWED')) actions.push({
+    action: 'ADMIN_REPLACE_MANDATE',
+    description: 'The institution administrator must sign a replacement mandate that explicitly allows this action.',
+  });
+  if (reasons.includes('ORACLE_STALE')) actions.push({
+    action: 'WAIT_FOR_ORACLE_HEARTBEAT',
+    description: 'Use get_protocol_info or get_portfolio until oracleFresh is true, then prepare a new intent.',
+  });
+  if (reasons.includes('INSUFFICIENT_BALANCE')) actions.push({
+    action: 'FUND_OR_SELECT_COLLATERAL_SOURCE',
+    description: 'Fund the wallet, reduce the amount, or use collateralSource AUTO/REPO_VAULT for margin deposits.',
+  });
+  if (actions.length === 0) actions.push({
+    action: 'CORRECT_AND_REPREPARE',
+    description: 'Resolve every blocking reason, then prepare a new intent with a fresh UUID idempotency key.',
+  });
+  return actions;
+}
+
+export function deriveRepoPositionLifecycle(
+  position: { status: string; seller: string; buyer: string; repaymentDeadline: Date },
+  wallet: Address,
+  chainTimestamp: bigint,
+  oracleFresh: boolean,
+) {
+  const normalizedWallet = wallet.toLowerCase();
+  const role = position.seller === normalizedWallet ? 'SELLER' : position.buyer === normalizedWallet ? 'LENDER' : 'OBSERVER';
+  const deadline = BigInt(Math.floor(position.repaymentDeadline.getTime() / 1_000));
+  const overdue = position.status === 'ACTIVE' && chainTimestamp > deadline;
+  const lifecycleState = overdue ? 'OVERDUE' : position.status;
+  const nextActions: Array<{ action: string; actorRole: string; description: string }> = [];
+  if (position.status === 'ACTIVE' && role === 'SELLER') nextActions.push({
+    action: 'REPAY',
+    actorRole: 'SELLER',
+    description: overdue
+      ? 'Repay immediately before the automatic default transaction lands.'
+      : 'Repay at or before the grace deadline; early-repurchase terms remain enforced on-chain.',
+  });
+  if (overdue) {
+    nextActions.push({
+      action: oracleFresh ? 'START_AUCTION' : 'WAIT_FOR_ORACLE_HEARTBEAT',
+      actorRole: 'ANY_AUTHORIZED_KEEPER',
+      description: oracleFresh
+        ? 'Default is open. The durable keeper is scheduled; any mandate-authorized positions agent may also prepare START_AUCTION.'
+        : 'Default is open but the signed valuation must be refreshed by the server-managed heartbeat first.',
+    });
+  }
+  if (position.status === 'AUCTION') nextActions.push({
+    action: 'LIST_AUCTIONS',
+    actorRole: 'ELIGIBLE_NON_SELLER',
+    description: 'Read the live Dutch price; the first successful eligible purchase closes the auction.',
+  });
+  if (position.status === 'AUCTION_FAILED' && role === 'LENDER') nextActions.push({
+    action: 'CLAIM_COLLATERAL',
+    actorRole: 'LENDER',
+    description: 'Claim the lender collateral recovery after failed-auction finalization.',
+  });
+  return { onChainStatus: position.status, lifecycleState, role, overdue, nextActions };
+}
+
+export function resolveIntentDiagnostics(
+  state: string,
+  approvalReason: string | null,
+  errorCode: string | null,
+  preflight: Partial<PreflightResultV2>,
+) {
+  const approvalWillResolveAllowance = (preflight.requiredApprovals?.length ?? 0) > 0;
+  const preflightReasons = (preflight.blockingReasons ?? []).filter((reason) =>
+    reason !== 'INSUFFICIENT_ALLOWANCE' || !approvalWillResolveAllowance);
+  const policyReasons = state === 'DENIED' && approvalReason
+    ? approvalReason.split(',').map((reason) => reason.trim()).filter(Boolean)
+    : [];
+  const failureReasons = ['DENIED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'REVERTED', 'FAILED', 'FAILED_WITH_ALLOWANCE'].includes(state)
+    && errorCode ? [errorCode] : [];
+  const blockingReasons = [...new Set([...policyReasons, ...preflightReasons, ...failureReasons])];
+  if (state === 'DENIED' && blockingReasons.length === 0) blockingReasons.push('POLICY_DENIED');
+  if (state === 'REJECTED' && blockingReasons.length === 0) blockingReasons.push('ADMIN_REJECTED');
+  return {
+    blockingReasons,
+    resolvedByTransactions: approvalWillResolveAllowance ? ['INSUFFICIENT_ALLOWANCE'] : [],
+  };
+}
+
+export function preflightMatchesRemainingProtocolSteps(
+  saved: Array<{ kind: string; status: string; destination: string; calldata: string; nativeValue: string }>,
+  transactions: PreflightResultV2['transactions'],
+) {
+  const remaining = saved.filter((step) => step.kind === 'PROTOCOL'
+    && step.status !== 'CONFIRMED' && step.status !== 'SKIPPED');
+  return remaining.length === transactions.length && remaining.every((step, index) => {
+    const current = transactions[index];
+    return current && step.destination.toLowerCase() === current.to.toLowerCase()
+      && step.calldata.toLowerCase() === current.data.toLowerCase()
+      && step.nativeValue === current.value;
+  });
+}
+
 function firstUint(...candidates: unknown[]): bigint {
   for (const value of candidates) {
     if (typeof value === 'string' && /^\d+$/.test(value)) return BigInt(value);
@@ -210,6 +372,14 @@ function notionalFrom(action: AgentAction, preflight: PreflightResultV2, input: 
 }
 
 function publicIntent(row: IntentRow, steps: Array<typeof agentIntentSteps.$inferSelect> = []) {
+  const preflight = (row.preflight ?? {}) as PreflightResultV2;
+  const { blockingReasons, resolvedByTransactions } = resolveIntentDiagnostics(
+    row.state,
+    row.approvalReason,
+    row.errorCode,
+    preflight,
+  );
+  const quote = preflight.quote ?? null;
   return serializeRow({
     intentId: row.id,
     intentHash: row.intentHash,
@@ -219,8 +389,31 @@ function publicIntent(row: IntentRow, steps: Array<typeof agentIntentSteps.$infe
     approvalRequired: row.approvalRequired,
     approvalReason: row.approvalReason,
     correlationId: row.correlationId,
-    blockingReasons: ((row.preflight ?? {}) as { blockingReasons?: string[] }).blockingReasons ?? [],
-    quote: ((row.preflight ?? {}) as { quote?: Record<string, unknown> }).quote ?? null,
+    blockingReasons,
+    blockingDetails: blockingReasons.map((code) => ({
+      code,
+      ...(BLOCKING_GUIDANCE[code] ?? {
+        message: `The action is blocked by ${code}.`,
+        recovery: 'Inspect the resource state and prepare a corrected intent after the condition is resolved.',
+      }),
+    })),
+    resolvedByTransactions,
+    nextActions: intentNextActions(row.state as AgentIntentState, blockingReasons, row.agentId, row.id),
+    quote,
+    projectedState: quote?.projectedState ?? null,
+    freshness: {
+      chainBlock: quote?.chainBlock ?? null,
+      chainTimestamp: quote?.chainTimestamp ?? null,
+      quoteExpiresAt: row.quoteExpiresAt,
+      intentUpdatedAt: row.updatedAt,
+    },
+    approvalHandoff: row.state === 'APPROVAL_REQUIRED' ? {
+      signerRole: 'INSTITUTION_ADMIN',
+      challengeEndpoint: `/v2/agents/${row.agentId}/intents/${row.id}/approval/challenge`,
+      submissionEndpoint: `/v2/agents/${row.agentId}/intents/${row.id}/approval`,
+      intentId: row.id,
+      intentHash: row.intentHash,
+    } : null,
     reservedNotional: row.reservedNotional,
     txHash: row.txHash,
     errorCode: row.errorCode,
@@ -957,7 +1150,20 @@ export class AgentService {
       settlementToken: this.config.V2_SETTLEMENT_TOKEN_ADDRESS,
       assets,
       status,
-      safety: { arbitraryTransactions: false, preflightRequired: true, durableIntents: true },
+      safety: {
+        arbitraryTransactions: false,
+        preflightRequired: true,
+        durableIntents: true,
+        valuationAuthority: 'SERVER_MANAGED_SIGNED_ORACLE',
+        roleMatrix: {
+          REPAY_POSITION: ['SELLER'],
+          START_AUCTION: ['ANY_MANDATE_AUTHORIZED_KEEPER_AFTER_DEADLINE'],
+          BUY_AUCTION: ['ANY_CVI_ELIGIBLE_NON_SELLER'],
+          CLAIM_COLLATERAL: ['LENDER'],
+          OPEN_MARGIN_ACCOUNT: ['COLLATERAL_OWNER'],
+          FUND_MARGIN_ACCOUNT: ['PERMITTED_LENDER_OR_PUBLIC_NON_SELLER'],
+        },
+      },
     });
   }
 
@@ -1001,7 +1207,8 @@ export class AgentService {
 
   async portfolio(claims: AgentTokenClaims) {
     this.requireScope(claims, 'protocol:read');
-    const [positions, sellerOffers, offerHistory, balances, claimsRows, activity] = await Promise.all([
+    const [block, positions, sellerOffers, offerHistory, balances, claimsRows, activity] = await Promise.all([
+      this.chain.blockNumber(),
       this.store.listV2Positions(claims.wallet, this.market()),
       this.store.listV2SellerOffers(claims.wallet, this.market()),
       this.store.listV2SellerOfferHistory(claims.wallet, this.market()),
@@ -1009,12 +1216,108 @@ export class AgentService {
       this.store.listSettlementClaims(claims.wallet),
       this.store.listV2Activity(claims.wallet, 20),
     ]);
-    return serializeRow({ wallet: claims.wallet, positions, sellerOffers, offerHistory, vaultBalances: balances, settlementClaims: claimsRows, activity });
+    const chainTimestamp = await this.chain.blockTimestamp(block);
+    const assetAddresses = [...new Set(positions.map((position) => position.assetAddress.toLowerCase()))] as Address[];
+    const [valuations, automation] = await Promise.all([
+      this.store.listLatestOracleValuations(assetAddresses),
+      this.store.listAutomationJobsForResources(
+        'startAuction',
+        'position',
+        positions.map((position) => position.positionId),
+        this.market(),
+      ),
+    ]);
+    const enrichedPositions = positions.map((position) => {
+      const valuation = valuations.find((candidate) => candidate.assetAddress === position.assetAddress);
+      const observedAt = valuation ? BigInt(Math.floor(valuation.observedAt.getTime() / 1_000)) : 0n;
+      const validFrom = valuation ? BigInt(Math.floor(valuation.validFrom.getTime() / 1_000)) : 0n;
+      const validUntil = valuation ? BigInt(Math.floor(valuation.validUntil.getTime() / 1_000)) : 0n;
+      const oracleFresh = Boolean(valuation)
+        && chainTimestamp >= validFrom
+        && chainTimestamp <= validUntil
+        && chainTimestamp <= observedAt + BigInt(position.maxOracleAgeSeconds);
+      const lifecycle = deriveRepoPositionLifecycle(position, claims.wallet, chainTimestamp, oracleFresh);
+      const job = automation.find((candidate) => candidate.resourceId === position.positionId);
+      return {
+        ...position,
+        ...lifecycle,
+        oracle: valuation ? {
+          valuationId: valuation.valuationId,
+          digest: valuation.digest,
+          priceE18: valuation.priceE18,
+          observedAt: valuation.observedAt,
+          validUntil: valuation.validUntil,
+          fresh: oracleFresh,
+          source: 'SIGNED_VALUATION_ORACLE',
+          agentSuppliedValuationRequired: false,
+        } : {
+          valuationId: null,
+          digest: null,
+          priceE18: null,
+          observedAt: null,
+          validUntil: null,
+          fresh: false,
+          source: 'SIGNED_VALUATION_ORACLE',
+          agentSuppliedValuationRequired: false,
+        },
+        defaultAutomation: job ? {
+          status: job.status,
+          attempts: job.attempts,
+          nextAttemptAt: job.nextAttemptAt,
+          txHash: job.txHash,
+          lastError: job.lastError,
+        } : null,
+      };
+    });
+    return serializeRow({
+      wallet: claims.wallet,
+      positions: enrichedPositions,
+      sellerOffers,
+      offerHistory,
+      vaultBalances: balances,
+      settlementClaims: claimsRows,
+      activity,
+      asOf: { block, timestamp: chainTimestamp },
+    });
   }
 
   async marginAccounts(claims: AgentTokenClaims) {
     this.requireScope(claims, 'protocol:read');
-    return serializeRow({ accounts: await this.store.listMarginAccounts(claims.wallet, this.config.MARGIN_ENGINE_V2_ADDRESS as Address | undefined) });
+    const engine = this.config.MARGIN_ENGINE_V2_ADDRESS as Address | undefined;
+    if (!engine) return { accounts: [], fundableAccounts: [], featureReady: false };
+    const metadata = await this.chain.marginMetadata(engine);
+    const block = await this.chain.blockNumber();
+    const [timestamp, accounts, fundableAccounts, walletBalance, marginVaultAvailable, repoConfig] = await Promise.all([
+      this.chain.blockTimestamp(block),
+      this.store.listMarginAccounts(claims.wallet, engine),
+      this.store.listFundableMarginAccounts(engine, 20),
+      this.chain.balanceOf(metadata.asset, claims.wallet),
+      this.chain.vaultAvailable(metadata.vault, claims.wallet),
+      this.chain.marketAssetConfig(this.market(), metadata.asset),
+    ]);
+    const repoVaultAvailable = repoConfig.vault === '0x0000000000000000000000000000000000000000'
+      ? 0n
+      : await this.chain.vaultAvailable(repoConfig.vault, claims.wallet).catch(() => 0n);
+    return serializeRow({
+      accounts,
+      fundableAccounts,
+      featureReady: this.config.V2_MARGIN_ENABLED,
+      collateralSources: {
+        asset: metadata.asset,
+        wallet: walletBalance,
+        marginVaultAvailable,
+        repoVault: repoConfig.vault,
+        repoVaultAvailable,
+        supportedForDeposit: ['AUTO', 'WALLET', 'REPO_VAULT'],
+      },
+      workflow: [
+        { step: 1, action: 'DEPOSIT', description: 'Move collateral into the margin vault; AUTO can sweep Repo Vault AVAILABLE in one approved intent.' },
+        { step: 2, action: 'OPEN_ACCOUNT', description: 'Reserve margin-vault AVAILABLE collateral into a shared netting set.' },
+        { step: 3, action: 'FUND_ACCOUNT', description: 'An eligible non-seller lender funds the published mandate.' },
+        { step: 4, action: 'REPAY_OR_MANAGE_MARGIN', description: 'Seller repays exposures or participants follow the explicit margin-call/liquidation state.' },
+      ],
+      asOf: { block, timestamp },
+    });
   }
 
   async auctions(claims: AgentTokenClaims, includeClosed = false) {
@@ -1025,6 +1328,30 @@ export class AgentService {
   async intentStatus(claims: AgentTokenClaims, intentId: string) {
     this.requireScope(claims, 'protocol:read');
     return this.intentForAgent(claims.agentId, intentId);
+  }
+
+  async eventFeed(claims: AgentTokenClaims, cursor?: string, limit = 100) {
+    this.requireScope(claims, 'protocol:read');
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+    const [cursorRow] = cursor
+      ? await this.db.select().from(agentEvents).where(and(
+        eq(agentEvents.id, cursor),
+        eq(agentEvents.agentId, claims.agentId),
+      )).limit(1)
+      : [];
+    if (cursor && !cursorRow) throw new AppError(404, 'EVENT_CURSOR_NOT_FOUND', 'The event cursor does not belong to this agent or is no longer available');
+    const rows = await this.db.select().from(agentEvents).where(and(
+      eq(agentEvents.agentId, claims.agentId),
+      cursorRow ? or(
+        gt(agentEvents.occurredAt, cursorRow.occurredAt),
+        and(eq(agentEvents.occurredAt, cursorRow.occurredAt), gt(agentEvents.id, cursorRow.id)),
+      ) : undefined,
+    )).orderBy(asc(agentEvents.occurredAt), asc(agentEvents.id)).limit(boundedLimit);
+    return serializeRow({
+      events: rows,
+      cursor: rows.at(-1)?.id ?? cursor ?? null,
+      hasMore: rows.length === boundedLimit,
+    });
   }
 
   private async intentForAgent(agentId: string, intentId: string) {
@@ -1232,6 +1559,8 @@ export class AgentService {
         .filter((entry) => entry.edge.from.toLowerCase() === wallet.toLowerCase())
         .map((entry) => entry.edge.to.toLowerCase()),
     ].filter((value): value is string => Boolean(value)));
+    let marginProtocolSteps = 0;
+    let repoVaultSweepSteps = 0;
     for (const approval of preflight.requiredApprovals) {
       if (!approvalTokens.has(approval.token.toLowerCase())
         || !approvalSpenders.has(approval.spender.toLowerCase())
@@ -1250,9 +1579,26 @@ export class AgentService {
           functionName = decodeFunctionData({ abi: settlementEscrowV2Abi, data: transaction.data as Hex }).functionName;
           if (functionName !== 'claim') throw new Error('selector');
         } else if (action === 'MARGIN_ACTION') {
-          if (!margin || transaction.to.toLowerCase() !== margin) throw new Error('destination');
-          functionName = decodeFunctionData({ abi: marginEngineV2Abi, data: transaction.data as Hex }).functionName;
-          if (functionName !== MARGIN_FUNCTION_BY_ACTION[String(input.action)]) throw new Error('selector');
+          if (margin && transaction.to.toLowerCase() === margin) {
+            functionName = decodeFunctionData({ abi: marginEngineV2Abi, data: transaction.data as Hex }).functionName;
+            if (functionName !== MARGIN_FUNCTION_BY_ACTION[String(input.action)] || ++marginProtocolSteps > 1) throw new Error('selector');
+          } else if (
+            transaction.to.toLowerCase() === market.toLowerCase()
+            && ['DEPOSIT', 'DEPOSIT_COLLATERAL'].includes(String(input.action))
+          ) {
+            const decoded = decodeFunctionData({ abi: repoMarketV2Abi, data: transaction.data as Hex });
+            functionName = decoded.functionName;
+            if (functionName !== 'withdrawCollateral' || ++repoVaultSweepSteps > 1) throw new Error('selector');
+            const [asset, amount, recipient] = decoded.args as readonly [Address, bigint, Address];
+            const provenSweep = preflight.transferGraph.some((entry) =>
+              entry.edge.token.toLowerCase() === asset.toLowerCase()
+              && entry.edge.to.toLowerCase() === wallet.toLowerCase()
+              && entry.edge.amount === amount.toString()
+              && entry.edge.purpose === 'COLLATERAL_RELEASE');
+            if (!provenSweep || recipient.toLowerCase() !== wallet.toLowerCase()) throw new Error('sweep');
+          } else {
+            throw new Error('destination');
+          }
         } else {
           if (transaction.to.toLowerCase() !== market.toLowerCase()) throw new Error('destination');
           functionName = decodeFunctionData({ abi: repoMarketV2Abi, data: transaction.data as Hex }).functionName;
@@ -1261,6 +1607,9 @@ export class AgentService {
       } catch {
         throw new AppError(409, 'UNTRUSTED_EXECUTION_PLAN', 'Preflight produced a destination or selector outside the reviewed semantic action');
       }
+    }
+    if (action === 'MARGIN_ACTION' && marginProtocolSteps !== 1) {
+      throw new AppError(409, 'UNTRUSTED_EXECUTION_PLAN', 'A margin intent must contain exactly one reviewed MarginEngine action');
     }
   }
 
@@ -1646,9 +1995,17 @@ export class AgentService {
       await this.failIntent(intent, 'INTENT_MANDATE_INACTIVE', 'The exact signed mandate is no longer active');
       throw new AppError(409, 'INTENT_MANDATE_INACTIVE', 'The exact mandate that authorized this intent is no longer active');
     }
+    const saved = await this.db.select().from(agentIntentSteps).where(eq(agentIntentSteps.intentId, intent.id)).orderBy(asc(agentIntentSteps.stepIndex));
+    const refreshInput = { ...(intent.input as IntentInput) };
+    const repoSweepAlreadyConfirmed = intent.action === 'MARGIN_ACTION'
+      && ['DEPOSIT', 'DEPOSIT_COLLATERAL'].includes(String(refreshInput.action))
+      && saved.some((step) => step.kind === 'PROTOCOL'
+        && step.status === 'CONFIRMED'
+        && step.destination.toLowerCase() === this.market().toLowerCase());
+    if (repoSweepAlreadyConfirmed) refreshInput.collateralSource = 'WALLET';
     let preflight: PreflightResultV2;
     try {
-      preflight = await this.runPreflight(intent.action as AgentAction, intent.input as IntentInput, agent.walletAddress as Address);
+      preflight = await this.runPreflight(intent.action as AgentAction, refreshInput, agent.walletAddress as Address);
     } catch (error) {
       if (error instanceof AppError && error.statusCode < 500) {
         await this.failIntent(intent, error.code, `Fresh preflight failed: ${error.message}`);
@@ -1666,14 +2023,11 @@ export class AgentService {
       if (error instanceof AppError) await this.failIntent(intent, error.code, error.message);
       throw error;
     }
-    const saved = await this.db.select().from(agentIntentSteps).where(eq(agentIntentSteps.intentId, intent.id)).orderBy(asc(agentIntentSteps.stepIndex));
-    const protocolSteps = saved.filter((step) => step.kind === 'PROTOCOL');
-    const same = protocolSteps.length === preflight.transactions.length && protocolSteps.every((step, index) => {
-      const current = preflight.transactions[index];
-      return current && step.destination.toLowerCase() === current.to.toLowerCase()
-        && step.calldata.toLowerCase() === current.data.toLowerCase()
-        && step.nativeValue === current.value;
-    });
+    // A composed intent may intentionally change live state between its own
+    // steps (for example repo-vault sweep -> margin deposit). Re-preflight must
+    // match the still-unexecuted suffix exactly, not require already-confirmed
+    // protocol steps to remain necessary forever.
+    const same = preflightMatchesRemainingProtocolSteps(saved, preflight.transactions);
     if (!same) {
       await this.failIntent(intent, 'INTENT_SEMANTICS_CHANGED', 'Fresh preflight produced different calldata');
       throw new AppError(409, 'INTENT_SEMANTICS_CHANGED', 'Fresh preflight produced different calldata; prepare a new intent');

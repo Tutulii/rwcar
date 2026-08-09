@@ -1,4 +1,6 @@
 import {
+  agentEvents,
+  agents,
   auctionSettlements,
   auctions,
   automationJobs,
@@ -16,7 +18,7 @@ import {
   vaultLedgerEntries,
   type RwcarDb,
 } from '@rwcar/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { hexToString, keccak256, stringToHex } from 'viem';
 
 type RwcarTransaction = Parameters<Parameters<RwcarDb['transaction']>[0]>[0];
@@ -161,6 +163,38 @@ async function cancelMarginExposureDefaultJobs(db: RwcarTransaction, event: V2Pr
   ));
   await Promise.all(exposures.map((exposure) =>
     cancelJob(db, event, 'declarePaymentDefault', 'margin_exposure', exposure.exposureId)));
+}
+
+async function emitWalletAgentEvent(
+  db: RwcarTransaction,
+  event: V2ProjectableEvent,
+  wallets: string[],
+  eventType: string,
+  payload: Record<string, unknown>,
+) {
+  const normalized = [...new Set(wallets.map(address))];
+  if (normalized.length === 0) return;
+  const recipients = await db.select({ id: agents.id }).from(agents).where(inArray(agents.walletAddress, normalized));
+  const eventKey = `${event.chainId}:${event.transactionHash.toLowerCase()}:${event.logIndex}:${eventType}`;
+  for (const recipient of recipients) {
+    const [existing] = await db.select({ id: agentEvents.id }).from(agentEvents).where(and(
+      eq(agentEvents.agentId, recipient.id),
+      eq(agentEvents.eventType, eventType),
+      sql`${agentEvents.payload}->>'eventKey' = ${eventKey}`,
+    )).limit(1);
+    if (!existing) await db.insert(agentEvents).values({
+      agentId: recipient.id,
+      eventType,
+      payload: {
+        ...payload,
+        eventKey,
+        txHash: event.transactionHash,
+        blockNumber: event.blockNumber.toString(),
+        chainTimestamp: event.blockTimestamp.toString(),
+      },
+      occurredAt: new Date(Number(event.blockTimestamp) * 1_000),
+    });
+  }
 }
 
 export async function projectV2Event(db: RwcarTransaction, event: V2ProjectableEvent) {
@@ -325,6 +359,7 @@ async function projectMarket(db: RwcarTransaction, event: V2ProjectableEvent, ar
     return;
   }
   if (event.eventName === 'PositionDefaulted' && positionWhere) {
+    const [position] = await db.select().from(v2Positions).where(positionWhere).limit(1);
     await db.update(v2Positions).set({
       status: 'AUCTION', auctionId: numberString(args.auctionId), frozenDebt: numberString(args.frozenDebt),
       defaultValuationDigest: String(args.valuationDigest), debtFrozenAt: blockTime, ...common(event),
@@ -341,6 +376,12 @@ async function projectMarket(db: RwcarTransaction, event: V2ProjectableEvent, ar
       eq(auctions.auctionId, numberString(args.auctionId)),
     ));
     await cancelJob(db, event, 'startAuction', 'position', numberString(args.positionId));
+    if (position) await emitWalletAgentEvent(db, event, [position.seller, position.buyer], 'POSITION_DEFAULTED', {
+      positionId: numberString(args.positionId),
+      auctionId: numberString(args.auctionId),
+      frozenDebt: numberString(args.frozenDebt),
+      valuationDigest: String(args.valuationDigest),
+    });
     return;
   }
   if (event.eventName === 'PositionLiquidated' && positionWhere) {
@@ -478,6 +519,13 @@ async function projectAuction(db: RwcarTransaction, event: V2ProjectableEvent, a
       status: 'OPEN',
       ...common(event),
     }).onConflictDoNothing();
+    await emitWalletAgentEvent(db, event, [position.seller, position.buyer], 'AUCTION_STARTED', {
+      positionId: referenceId,
+      auctionId,
+      endsAt: date(args.endsAt).toISOString(),
+      startPrice: numberString(args.startPrice),
+      floorPrice: numberString(args.floorPrice),
+    });
     await scheduleJob(db, event, 'finalizeFailedAuction', 'auction', auctionId, new Date(date(args.endsAt).getTime() + 1_000));
   } else if (event.eventName === 'AuctionSold') {
     const [auctionProjection] = await db.select().from(auctions).where(where).limit(1);

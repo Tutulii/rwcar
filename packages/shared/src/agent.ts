@@ -157,7 +157,7 @@ export const AgentPositionActionSchema = AgentIdempotencySchema.extend({
   action: z.enum(['REPAY', 'START_AUCTION', 'CLAIM_COLLATERAL', 'CLAIM_ORACLE_FALLBACK']),
   positionId: UintStringSchema,
   maxPayoff: UintStringSchema.optional(),
-  valuationId: UintStringSchema.optional(),
+  valuationId: UintStringSchema.optional().describe('Deprecated compatibility field. Omit it; RWCAR resolves the current authorized signed valuation.'),
   recipient: AddressSchema.optional(),
 });
 
@@ -194,7 +194,31 @@ export const AgentIntentPreviewSchema = z.object({
   approvalRequired: z.boolean(),
   correlationId: z.string().uuid().nullable(),
   blockingReasons: z.array(z.union([BlockingReasonSchema, z.string()])),
+  blockingDetails: z.array(z.object({
+    code: z.string(),
+    message: z.string(),
+    recovery: z.string(),
+  })),
+  resolvedByTransactions: z.array(z.string()),
+  nextActions: z.array(z.object({
+    action: z.string(),
+    description: z.string(),
+  }).passthrough()),
   quote: z.record(z.string(), z.unknown()).nullable(),
+  projectedState: z.record(z.string(), z.unknown()).nullable(),
+  freshness: z.object({
+    chainBlock: UintStringSchema.nullable(),
+    chainTimestamp: UintStringSchema.nullable(),
+    quoteExpiresAt: z.string().datetime().nullable(),
+    intentUpdatedAt: z.string().datetime(),
+  }),
+  approvalHandoff: z.object({
+    signerRole: z.literal('INSTITUTION_ADMIN'),
+    challengeEndpoint: z.string(),
+    submissionEndpoint: z.string(),
+    intentId: z.string().uuid(),
+    intentHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  }).nullable(),
   transactionSummary: z.array(z.object({
     to: AddressSchema,
     selector: z.string().regex(/^0x[a-fA-F0-9]{8}$/),

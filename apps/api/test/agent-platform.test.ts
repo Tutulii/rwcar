@@ -16,6 +16,11 @@ import {
 import { buildAgentDiscovery } from '../src/routes/agent-discovery.js';
 import { RWCAR_MCP_TOOLS, RWCAR_MCP_TOOL_SCOPES } from '../src/routes/mcp.js';
 import { TokenBodySchema } from '../src/routes/oauth.js';
+import {
+  deriveRepoPositionLifecycle,
+  preflightMatchesRemainingProtocolSteps,
+  resolveIntentDiagnostics,
+} from '../src/services/agent.js';
 
 const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const privateJwk = privateKey.export({ format: 'jwk' });
@@ -96,6 +101,8 @@ describe('agent configuration and discovery', () => {
     assert.equal(discovery.capabilities.toolCount, 17);
     assert.deepEqual(discovery.capabilities.tools, RWCAR_MCP_TOOLS);
     assert.equal(discovery.capabilities.arbitraryTransactions, false);
+    assert.equal(discovery.events.stream, 'https://api.example.test/agent/v1/events/stream');
+    assert.equal(discovery.events.protocol, 'SSE');
     assert.deepEqual(Object.keys(RWCAR_MCP_TOOL_SCOPES), [...RWCAR_MCP_TOOLS]);
     assert.equal(RWCAR_MCP_TOOL_SCOPES.execute_intent, 'intents:execute');
     assert.equal(RWCAR_MCP_TOOL_SCOPES.get_execution_status, 'protocol:read');
@@ -140,5 +147,61 @@ describe('signed mandate constraints', () => {
     assert.equal(AgentMandateConstraintsSchema.safeParse({ ...valid, autoExecuteUpTo: '1000001' }).success, false);
     assert.equal(AgentMandateConstraintsSchema.safeParse({ ...valid, maxAnnualRateBps: 99 }).success, false);
     assert.equal(AgentMandateConstraintsSchema.safeParse({ ...valid, expiresAt: now }).success, false);
+  });
+});
+
+describe('agent-drivable lifecycle diagnostics', () => {
+  it('never returns an unexplained denial and treats generated approvals as recovery steps', () => {
+    assert.deepEqual(resolveIntentDiagnostics('DENIED', null, null, {}).blockingReasons, ['POLICY_DENIED']);
+    assert.deepEqual(resolveIntentDiagnostics('REJECTED', null, null, {}).blockingReasons, ['ADMIN_REJECTED']);
+    assert.deepEqual(
+      resolveIntentDiagnostics('DENIED', 'ACTION_NOT_ALLOWED', null, {}).blockingReasons,
+      ['ACTION_NOT_ALLOWED'],
+    );
+    const allowance = resolveIntentDiagnostics('PREPARED', null, null, {
+      blockingReasons: ['INSUFFICIENT_ALLOWANCE'],
+      requiredApprovals: [{
+        token: '0x0000000000000000000000000000000000000001',
+        spender: '0x0000000000000000000000000000000000000002',
+        amount: '1',
+      }],
+    });
+    assert.deepEqual(allowance.blockingReasons, []);
+    assert.deepEqual(allowance.resolvedByTransactions, ['INSUFFICIENT_ALLOWANCE']);
+  });
+
+  it('derives OVERDUE immediately while preserving the authoritative on-chain ACTIVE status', () => {
+    const position = {
+      status: 'ACTIVE',
+      seller: '0x0000000000000000000000000000000000000001',
+      buyer: '0x0000000000000000000000000000000000000002',
+      repaymentDeadline: new Date(1_000_000),
+    };
+    const view = deriveRepoPositionLifecycle(
+      position,
+      '0x0000000000000000000000000000000000000002',
+      1_001n,
+      true,
+    );
+    assert.equal(view.onChainStatus, 'ACTIVE');
+    assert.equal(view.lifecycleState, 'OVERDUE');
+    assert.equal(view.role, 'LENDER');
+    assert.equal(view.nextActions.some((action) => action.action === 'START_AUCTION'), true);
+  });
+
+  it('re-preflights only the unexecuted suffix of a reviewed composed workflow', () => {
+    const first = {
+      kind: 'PROTOCOL', status: 'CONFIRMED', destination: '0x0000000000000000000000000000000000000001', calldata: '0x11111111', nativeValue: '0',
+    };
+    const second = {
+      kind: 'PROTOCOL', status: 'PENDING', destination: '0x0000000000000000000000000000000000000002', calldata: '0x22222222', nativeValue: '0',
+    };
+    assert.equal(preflightMatchesRemainingProtocolSteps([first, second], [{
+      to: second.destination,
+      data: second.calldata,
+      value: second.nativeValue,
+      description: 'deposit remaining collateral',
+    }]), true);
+    assert.equal(preflightMatchesRemainingProtocolSteps([first, second], []), false);
   });
 });
