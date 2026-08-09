@@ -90,6 +90,16 @@ describe('agent service isolation', () => {
     assert.match(read('.dockerignore'), /^\.secrets$/m);
   });
 
+  it('pins institutional signatures to the canonical administrator after agent wallet creation', () => {
+    const app = read('src/AppLive.jsx');
+    const console = read('src/AgentConsole.jsx');
+    assert.match(app, /const primaryWallet = wallets\.find/);
+    assert.match(app, /const wallet = primaryWallet \|\| externalWallet \|\| wallets\[0\]/);
+    assert.match(console, /institution\?\.adminWallet \|\| adminAddress/);
+    assert.match(console, /requireInstitutionAdminWallet\(\)/);
+    assert.doesNotMatch(console, /signTypedData\(challenge(?:\.typedData)?, \{ address: adminAddress \}\)/);
+  });
+
   it('keeps the reviewed Hono advisory path unreachable in the Linux API image', () => {
     assert.match(read('Dockerfile.api'), /^FROM node:22-bookworm-slim/m);
     const apiSources = [read('apps/api/src/routes/mcp.ts'), read('apps/api/src/app.ts')].join('\n');

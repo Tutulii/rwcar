@@ -127,6 +127,19 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
     () => wallets.filter((wallet) => wallet.walletClientType === 'privy' || wallet.walletClientType === 'privy-v2'),
     [wallets],
   );
+  const institutionAdminAddress = institution?.adminWallet || adminAddress || '';
+  const institutionAdminWallet = useMemo(
+    () => wallets.find((wallet) => wallet.address?.toLowerCase() === institutionAdminAddress.toLowerCase()),
+    [institutionAdminAddress, wallets],
+  );
+
+  const requireInstitutionAdminWallet = () => {
+    if (!institutionAdminAddress) throw new Error('Connect the institution administrator wallet first.');
+    if (!institutionAdminWallet) {
+      throw new Error(`Reconnect institution administrator wallet ${short(institutionAdminAddress)} before signing.`);
+    }
+    return institutionAdminWallet.address;
+  };
 
   useEffect(() => {
     if (selectedAssets.length || !assets.length) return;
@@ -197,8 +210,8 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
   };
 
   const createAgentRecord = () => run('create-agent', async () => {
-    if (!adminAddress) throw new Error('Connect the institution administrator wallet first.');
-    const agent = await adminRequest('/v2/agents', { body: { name: name.trim(), adminWallet: adminAddress } });
+    const administrator = requireInstitutionAdminWallet();
+    const agent = await adminRequest('/v2/agents', { body: { name: name.trim(), adminWallet: administrator } });
     setSelectedId(agent.id);
     setNotice('Agent record created. Create its dedicated Privy wallet next.');
     return { agentId: agent.id };
@@ -283,7 +296,8 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
     };
     const unsigned = { wallet: agent.walletAddress, manifestHash: RWCAR_AGENT_MANIFEST.sha256, constraints };
     const challenge = await adminRequest(`/v2/agents/${selectedId}/mandates/challenge`, { body: unsigned });
-    const { signature } = await signTypedData(challenge.typedData, { address: adminAddress });
+    const administrator = requireInstitutionAdminWallet();
+    const { signature } = await signTypedData(challenge.typedData, { address: administrator });
     await adminRequest(`/v2/agents/${selectedId}/mandates`, { body: { ...unsigned, signature } });
     setNotice('Institutional mandate signed. Live Cleanverse eligibility was evaluated against every allowed asset.');
     return { agentId: selectedId };
@@ -320,7 +334,8 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
 
   const decideIntent = (intent, decision) => run(`intent-${intent.intentId}`, async () => {
     const challenge = await adminRequest(`/v2/agents/${selectedId}/intents/${intent.intentId}/approval/challenge`, { body: { decision } });
-    const { signature } = await signTypedData(challenge, { address: adminAddress });
+    const administrator = requireInstitutionAdminWallet();
+    const { signature } = await signTypedData(challenge, { address: administrator });
     await adminRequest(`/v2/agents/${selectedId}/intents/${intent.intentId}/approval`, {
       body: { decision, expiresAt: Number(challenge.message.expiresAt), signature },
     });
@@ -398,7 +413,7 @@ export default function AgentConsole({ authenticated, adminAddress, login, getAc
             <div className="agent-form-grid three"><label>Mandate lifetime (days)<input type="number" min="1" max="30" value={mandateDays} onChange={(event) => setMandateDays(event.target.value)}/></label><label>Allowed counterparties (optional)<input value={counterparties} onChange={(event) => setCounterparties(event.target.value)} placeholder="0x…, 0x…"/></label><label>Allowed recipients (optional)<input value={recipients} onChange={(event) => setRecipients(event.target.value)} placeholder="0x…, 0x…"/></label></div>
             <div className="agent-choice-block"><strong>Allowed verified assets</strong>{assets.length ? <div className="agent-asset-options">{assets.map((asset) => <label key={asset.address} className={selectedAssets.includes(asset.address) ? 'selected' : ''}><input type="checkbox" checked={selectedAssets.includes(asset.address)} onChange={() => setSelectedAssets(selectedAssets.includes(asset.address) ? selectedAssets.filter((item) => item !== asset.address) : [...selectedAssets, asset.address])}/><span>{asset.symbol || short(asset.address)}</span><small>{short(asset.address)}</small></label>)}</div> : <label className="agent-manual-asset">Issued CVA address<input value={manualAsset} onChange={(event) => setManualAsset(event.target.value)} placeholder="0x…"/></label>}</div>
             <div className="agent-choice-block"><strong>Allowed semantic actions</strong><ToggleGrid rows={ACTIONS} selected={selectedActions} onChange={setSelectedActions}/></div>
-            <button className="button primary" type="button" disabled={Boolean(working) || !adminAddress} onClick={signMandate}>{working === 'sign-mandate' ? 'Awaiting administrator signature…' : activeMandate ? 'Replace Signed Mandate' : 'Sign Institutional Mandate'}</button>
+            <button className="button primary" type="button" disabled={Boolean(working) || !institutionAdminWallet} onClick={signMandate}>{working === 'sign-mandate' ? 'Awaiting administrator signature…' : activeMandate ? 'Replace Signed Mandate' : 'Sign Institutional Mandate'}</button>
             {activeMandate && <div className="agent-current-mandate"><span>Active mandate v{activeMandate.version}</span><span>Expires {dateTime(activeMandate.expiresAt)}</span><span>{activeMandate.allowedActions.length} actions · {activeMandate.allowedAssets.length} assets</span></div>}
           </section>}
 
