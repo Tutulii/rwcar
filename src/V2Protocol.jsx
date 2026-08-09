@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from './lib/api.js';
 import { formatUnits, parseUnits } from './lib/chain.js';
+import { selectMarginRiskDisplay } from './lib/margin-risk.js';
 
 const SECONDS_PER_YEAR = 365n * 24n * 60n * 60n;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -717,7 +718,8 @@ export function MarginPage({ accounts, auctions = [], assets, address, loading, 
     {loading ? <div className="card v2-loading">Calculating finalized netting-set health…</div> : accounts.length ? <section className="v2-margin-grid">{accounts.map((row) => {
       const asset = assetFor(assets, pick(row, ['assetAddress', 'asset'])) || marginAsset;
       const status = String(pick(row, ['status'], 'UNKNOWN'));
-      const directLtv = pick(row, ['ltvBps', 'currentLtvBps']);
+      const riskDisplay = selectMarginRiskDisplay(row, status);
+      const directLtv = riskDisplay.ltvBps;
       const ltv = directLtv === null ? null : Number(directLtv);
       const maintenance = Number(pick(row, ['maintenanceLtvBps'], 0));
       const liquidation = Number(pick(row, ['liquidationLtvBps'], 0));
@@ -752,7 +754,7 @@ export function MarginPage({ accounts, auctions = [], assets, address, loading, 
       return <article className="card v2-margin-card" key={accountId}>
         <header><div><span className="section-eyebrow">Netting set #{accountId}</span><h3>{asset?.name || 'Shared CVA collateral'}</h3><CvaSeal asset={asset} compact/></div><StagePill value={status}/></header>
         {tone !== 'healthy' && <div className={`v2-margin-call ${tone}`}><V2Icon name="clock" size={15}/><div><strong>{status === 'LIQUIDATING' ? `Auction #${auctionId || '—'} in progress` : tone === 'danger' ? 'Closeout state requires attention' : 'Margin call is active'}</strong><small>{callDeadline > 0 && status === 'MARGIN_CALL' ? `Cure deadline ${dateTime(callDeadline)}` : 'All lifecycle transitions are rechecked on-chain before signature.'}</small></div></div>}
-        <div className="v2-health"><div className="v2-health-ring" style={{ '--ltv': ltv === null ? 0 : Math.min(100, ltv / 100), '--health-color': tone === 'healthy' ? '#10B981' : tone === 'warning' ? '#D4AF37' : '#f87171' }}><span><strong>{ltv === null ? '—' : `${(ltv / 100).toFixed(2)}%`}</strong><small>Finalized LTV</small></span></div><dl><div><dt>Signed collateral value</dt><dd>{optionalAmount(row.collateralValue, settlementDecimals, settlementSymbol)}</dd></div><div><dt>Face liabilities</dt><dd>{amount(debt, settlementDecimals, settlementSymbol)}</dd></div><div><dt>Funding mandate</dt><dd>{amount(totalFunded, settlementDecimals, settlementSymbol)} / {amount(fundingTarget, settlementDecimals, settlementSymbol)}</dd></div><div><dt>Maximum rate</dt><dd>{percent(row.maxAnnualRateBps)}</dd></div><div><dt>Funding expiry</dt><dd>{fundingExpiry ? dateTime(fundingExpiry) : '—'}</dd></div><div><dt>Locked collateral</dt><dd>{amount(row.collateralAmount, asset?.decimals ?? marginDecimals, asset?.symbol || marginSymbol)}</dd></div><div><dt>Active exposures</dt><dd>{row.activeExposureCount ?? exposures.filter((item) => item.status === 'ACTIVE').length}</dd></div></dl></div>
+        <div className="v2-health"><div className="v2-health-ring" style={{ '--ltv': ltv === null ? 0 : Math.min(100, ltv / 100), '--health-color': tone === 'healthy' ? '#10B981' : tone === 'warning' ? '#D4AF37' : '#f87171' }}><span><strong>{ltv === null ? '—' : `${(ltv / 100).toFixed(2)}%`}</strong><small>{riskDisplay.usesLiveRisk ? 'Live signed LTV' : 'Closeout LTV'}</small></span></div><dl><div><dt>Signed collateral value</dt><dd>{optionalAmount(riskDisplay.collateralValue, settlementDecimals, settlementSymbol)}</dd></div><div><dt>Face liabilities</dt><dd>{amount(debt, settlementDecimals, settlementSymbol)}</dd></div><div><dt>Funding mandate</dt><dd>{amount(totalFunded, settlementDecimals, settlementSymbol)} / {amount(fundingTarget, settlementDecimals, settlementSymbol)}</dd></div><div><dt>Maximum rate</dt><dd>{percent(row.maxAnnualRateBps)}</dd></div><div><dt>Funding expiry</dt><dd>{fundingExpiry ? dateTime(fundingExpiry) : '—'}</dd></div><div><dt>Locked collateral</dt><dd>{amount(row.collateralAmount, asset?.decimals ?? marginDecimals, asset?.symbol || marginSymbol)}</dd></div><div><dt>Active exposures</dt><dd>{row.activeExposureCount ?? exposures.filter((item) => item.status === 'ACTIVE').length}</dd></div></dl></div>
         {exposures.length > 0 && <div className="v2-exposures"><span>Lender exposures</span>{exposures.map((exposure) => {
           const exposureId = exposureIdOf(exposure);
           const lender = pick(exposure, ['lender', 'buyer'], '');
