@@ -1261,6 +1261,8 @@ export class AgentService {
           agentSuppliedValuationRequired: false,
         },
         defaultAutomation: job ? {
+          executionMode: 'DIRECT_PERMISSIONLESS_ONCHAIN',
+          humanApprovalRequired: false,
           status: job.status,
           attempts: job.attempts,
           nextAttemptAt: job.nextAttemptAt,

@@ -182,6 +182,7 @@ const indexer = writeEnvironment('railway-indexer.env', {
   INDEXER_CATCHUP_DELAY_MS: '250',
   KEEPER_PRIVATE_KEY: keeperKey,
   KEEPER_POLL_MS: '10000',
+  V2_AUTOMATION_STALE_TX_MS: '120000',
   V2_AUTOMATION_MAX_CHECKPOINT_LAG: '100',
   V2_SETTLEMENT_TOKEN_ADDRESS: deployment.externalContracts.settlementToken,
   V2_DEPLOYMENTS_JSON: JSON.stringify(deployment.indexerSources),

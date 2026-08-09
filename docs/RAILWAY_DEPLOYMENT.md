@@ -39,6 +39,8 @@ Create one Railway project and use these exact service names so the generated va
 
 Keep `rwcar-indexer` at exactly one replica because it owns one keeper transaction nonce stream. Keep `rwcar-agent-executor` at one replica for the reviewed release; PostgreSQL locks still serialize each wallet, but a single executor simplifies incident recovery.
 
+Set `V2_AUTOMATION_STALE_TX_MS=120000` unless the selected RPC's mempool retention has a reviewed stricter value. The keeper serializes its durable outbox, checks its worst-case gas liability before signing, exact-rebroadcasts first, and only performs a same-nonce/same-call fee replacement after the receipt and pending-nonce checks prove the signed transaction stale. Maintain at least `0.25 MON` on the Monad UAT keeper and alert well before that reserve is exhausted.
+
 The same worker refreshes the already-approved RWRN01 valuation every ten minutes. It verifies both signers against the live oracle and refuses to change the configured price, settlement token, or canonical evidence hash. This co-located signer arrangement is restricted to Monad UAT; production must use independently operated or HSM-backed signing services.
 
 The API also pins the deployed settlement A-Token runtime hash. If Cleanverse rotates the off-chain deposit-token list, the exact deployed aUSDC may remain usable only when its bytecode still matches that reviewed hash, its live token policy is unpaused, the wallet has an active A-Pass, and the Cleanverse on-chain policy pool returns eligible. A registry miss alone never bypasses those on-chain checks.

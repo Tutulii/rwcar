@@ -12,6 +12,9 @@ import {
   isAutomationLeaseClaimable,
   isSignedAutomationTransaction,
   isSupportedV2JobAction,
+  preparedTransactionMaxCost,
+  replacementFee,
+  staleAutomationTransactionReason,
   v2AutomationCheckpointState,
 } from '../src/v2-keeper.js';
 import { canonicalCheckpointMatches, v2Consumer } from '../src/v2-indexer.js';
@@ -73,6 +76,8 @@ describe('indexer serialization', () => {
       loadConfig({ ...requiredConfig, KEEPER_PRIVATE_KEY: `0x${'1'.repeat(64)}` }).KEEPER_POLL_MS,
       10_000,
     );
+    assert.equal(loadConfig(requiredConfig).V2_AUTOMATION_STALE_TX_MS, 120_000);
+    assert.throws(() => loadConfig({ ...requiredConfig, V2_AUTOMATION_STALE_TX_MS: '59999' }));
   });
 
   it('requires a complete, distinct two-signer configuration for an enabled oracle heartbeat', () => {
@@ -224,6 +229,30 @@ describe('indexer serialization', () => {
     assert.equal(isSignedAutomationTransaction('0x123'), false);
     assert.equal(isSignedAutomationTransaction('0xnothex'), false);
     assert.equal(isSignedAutomationTransaction(undefined), false);
+  });
+
+  it('replaces only signed transactions proven stale by nonce and age', () => {
+    const now = new Date('2026-08-09T13:30:00.000Z');
+    const common = {
+      transactionNonce: 7n,
+      latestNonce: 7n,
+      pendingNonce: 7n,
+      preparedAt: new Date('2026-08-09T13:27:59.000Z'),
+      now,
+      staleAfterMs: 120_000,
+    };
+    assert.equal(staleAutomationTransactionReason(common), 'MISSING_FROM_PENDING_POOL');
+    assert.equal(staleAutomationTransactionReason({ ...common, pendingNonce: 8n }), null);
+    assert.equal(staleAutomationTransactionReason({ ...common, preparedAt: new Date('2026-08-09T13:29:00.001Z') }), null);
+    assert.equal(staleAutomationTransactionReason({ ...common, latestNonce: 8n, pendingNonce: 8n }), 'NONCE_CONSUMED');
+    assert.equal(staleAutomationTransactionReason({ ...common, transactionNonce: null }), null);
+  });
+
+  it('prices a same-nonce replacement above both the original and current fee', () => {
+    assert.equal(replacementFee(100n, 90n), 113n);
+    assert.equal(replacementFee(100n, 150n), 150n);
+    assert.equal(replacementFee(undefined, 150n), 150n);
+    assert.equal(preparedTransactionMaxCost(617_335n, 122_000_000_000n), 75_314_870_000_000_000n);
   });
 
   it('projects the exact final OfferFilled ABI without undefined immutable terms', () => {
