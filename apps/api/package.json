@@ -11,20 +11,25 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.922.0",
     "@fastify/cors": "^11.1.0",
+    "@fastify/formbody": "^8.0.2",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^9.3.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@fastify/swagger": "^9.8.1",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@privy-io/node": "^0.7.0",
-    "@aws-sdk/client-s3": "^3.922.0",
     "@rwcar/db": "1.0.0",
     "@rwcar/shared": "1.0.0",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.6.1",
     "fastify-plugin": "^5.1.0",
     "fastify-type-provider-zod": "^6.1.0",
+    "jose": "^6.2.8",
     "viem": "^2.55.11",
-    "zod": "^4.1.12"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "tsx": "^4.20.6",

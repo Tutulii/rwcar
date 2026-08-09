@@ -12,6 +12,7 @@ The normative V2 economics, state machines, rounding rules, and invariants are d
 4. The indexer waits for confirmations, scans every manifest-recorded module, stores raw logs idempotently by chain/transaction/log index, detects checkpoint reorgs, and projects offers, positions, vault buckets, auctions, settlement claims, valuations, risk changes, and margin accounts.
 5. A separate gas-limited keeper executes only permissionless lifecycle calls from durable jobs after every source reaches the finalized gate. It has no ownership or asset withdrawal authority.
 6. PostgreSQL, object storage, and API caches are evidence/read planes. They cannot create, fund, settle, liquidate, or rewrite an on-chain repo.
+7. The optional agent plane exposes only semantic MCP/REST actions. The API records a hash-bound intent after mandate and live preflight checks; a separately deployed Privy executor rechecks policy/preflight and signs exact steps. Human administrators retain pause, permanent revocation, mandate replacement, and high-risk approval authority. See [AGENT_PLATFORM.md](AGENT_PLATFORM.md).
 
 ## V2 deployment topology
 

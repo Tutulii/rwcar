@@ -1,0 +1,5 @@
+interface:
+  display_name: "RWCAR Institutional Agent"
+  short_description: "Compliant RWA repo execution on Monad"
+  brand_color: "#D4AF37"
+  default_prompt: "Use $rwcar-agent to discover RWCAR markets and execute a policy-compliant repo workflow."
