@@ -443,10 +443,13 @@ function AppLive() {
   const { login } = useLogin();
   const { wallets } = useWallets();
   const linkedWallet = user?.linkedAccounts?.find((account) => account.type === 'wallet' || account.type === 'smart_wallet');
-  const address = wallets[0]?.address || user?.wallet?.address || linkedWallet?.address || '';
+  const primaryAddress = user?.wallet?.address || linkedWallet?.address || '';
+  const primaryWallet = wallets.find((candidate) => candidate.address?.toLowerCase() === primaryAddress.toLowerCase());
+  const externalWallet = wallets.find((candidate) => !['privy', 'privy-v2'].includes(candidate.walletClientType));
+  const wallet = primaryWallet || externalWallet || wallets[0];
+  const address = wallet?.address || primaryAddress;
   const activeAddress = useRef(address);
   activeAddress.current = address;
-  const wallet = wallets.find((candidate) => candidate.address?.toLowerCase() === address.toLowerCase()) || wallets[0];
   const validPages = ['landing', 'ownership', ...navigation.map((item) => item.id)];
   const initial = window.location.hash.replace('#/', '') || 'landing';
   const [page, setPage] = useState(validPages.includes(initial) ? initial : 'landing');
