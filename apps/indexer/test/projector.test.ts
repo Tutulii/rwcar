@@ -8,6 +8,7 @@ import { resolveOracleHeartbeatTargets, shouldPublishOracleHeartbeat } from '../
 import { jsonSafe } from '../src/projector.js';
 import {
   automationRetryDelayMs,
+  durableLifecycleRetryDelayMs,
   isAutomationLeaseClaimable,
   isSignedAutomationTransaction,
   isSupportedV2JobAction,
@@ -199,6 +200,8 @@ describe('indexer serialization', () => {
     assert.equal(canonicalCheckpointMatches('0xABCD', '0xdead'), false);
     assert.equal(automationRetryDelayMs(1), 5_000);
     assert.equal(automationRetryDelayMs(99), 15 * 60_000);
+    assert.equal(durableLifecycleRetryDelayMs(1), 5_000);
+    assert.equal(durableLifecycleRetryDelayMs(99), 60_000);
     assert.equal(isSupportedV2JobAction('startAuction'), true);
     assert.equal(isSupportedV2JobAction('unknown'), false);
     assert.equal(isSupportedV2JobAction('materializeLiquidationClaim'), true);

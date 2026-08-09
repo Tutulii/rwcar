@@ -14,10 +14,10 @@ Operate RWCAR through the reviewed MCP surface. Treat every amount as an integer
 3. Use read tools to select an existing on-chain resource. Do not invent offer, position, auction, claim, valuation, or margin-account identifiers.
 4. Generate one UUID idempotency key for the semantic operation. Keep it unchanged across retries.
 5. Call the matching `prepare_*` tool. Preparation creates a durable intent but does not sign or submit a transaction.
-6. Inspect the returned intent hash, policy decision, quote expiry, blocking reasons, destinations, selectors, values, and transaction descriptions.
-7. If the intent is `APPROVAL_REQUIRED`, stop execution and tell the human administrator exactly what is awaiting approval. Poll `get_execution_status`; do not manufacture an approval.
+6. Inspect the returned intent hash, policy decision, quote expiry, `blockingDetails`, `resolvedByTransactions`, `nextActions`, destinations, selectors, values, and transaction descriptions. An allowance listed in `resolvedByTransactions` is handled by the generated approval step and is not a blocker.
+7. If the intent is `APPROVAL_REQUIRED`, stop execution and pass its `approvalHandoff` to the human administrator. The administrator signs through the Agent Console; do not manufacture an approval.
 8. If policy permits execution, call `execute_intent` with the exact `intentId` and `intentHash` returned by preparation.
-9. Poll `get_execution_status` until a terminal state. Report each Monad transaction hash and distinguish confirmed from fully indexed completion.
+9. Subscribe to the OAuth-protected event stream published in `/agent-discovery.json`, or poll `get_execution_status`, until a terminal state. Report each Monad transaction hash and distinguish confirmed from fully indexed completion.
 
 Read [workflows.md](references/workflows.md) for lifecycle-specific sequences, [tool-contracts.md](references/tool-contracts.md) for the 17-tool surface, and [errors-and-recovery.md](references/errors-and-recovery.md) before recovering a failed or ambiguous operation.
 
@@ -30,6 +30,7 @@ Read [workflows.md](references/workflows.md) for lifecycle-specific sequences, [
 - Never change an intent after preparation. Changed economics require a new preparation and a new UUID.
 - Never claim execution from a transaction receipt alone. Require the intent state `COMPLETED` unless explicitly reporting an intermediate state.
 - Never infer that an asset is verified from its symbol. Use `list_verified_assets` and live `check_eligibility` results.
+- Never invent or post a valuation. RWCAR resolves the latest authorized signed oracle valuation server-side and reports its freshness through protocol and portfolio reads.
 - Treat `FAILED_WITH_ALLOWANCE` as a partial-execution incident: an approval may have landed even though the protocol call did not. Inspect status and balance before preparing again.
 - Respect all signed-mandate limits even when a human asks for a larger trade; require the institution to replace the mandate through the Agent Console.
 

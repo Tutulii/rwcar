@@ -93,7 +93,7 @@ export const MarginActionV2Schema = z.object({
   auctionId: UintStringSchema.optional(),
   asset: AddressSchema.optional(),
   amount: UintStringSchema.optional(),
-  valuationId: UintStringSchema.optional(),
+  valuationId: UintStringSchema.optional().describe('Deprecated compatibility field. Omit it; the server resolves the current authorized signed valuation.'),
   recipient: AddressSchema.optional(),
   fundingTarget: UintStringSchema.optional(),
   minimumFunding: UintStringSchema.optional(),
@@ -106,6 +106,8 @@ export const MarginActionV2Schema = z.object({
   maxFaceDebt: UintStringSchema.optional(),
   maxPrice: UintStringSchema.optional(),
   useEscrow: z.boolean().optional(),
+  collateralSource: z.enum(['AUTO', 'WALLET', 'REPO_VAULT']).optional().default('AUTO')
+    .describe('Collateral source for DEPOSIT. AUTO safely composes Repo Vault AVAILABLE when wallet inventory is short.'),
 });
 
 export const OfferActionV2Schema = z.object({
@@ -116,7 +118,7 @@ export const OfferActionV2Schema = z.object({
 export const PositionLifecycleActionV2Schema = z.object({
   actor: AddressSchema,
   positionId: UintStringSchema,
-  valuationId: UintStringSchema.optional(),
+  valuationId: UintStringSchema.optional().describe('Deprecated compatibility field. Omit it; the server resolves the current authorized signed valuation.'),
   recipient: AddressSchema.optional(),
 });
 

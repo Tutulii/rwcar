@@ -43,9 +43,29 @@ const uniqueCompliance = (values: PreflightResultV2['compliance']) => values.fil
   values.findIndex((candidate) => candidate.wallet.toLowerCase() === value.wallet.toLowerCase()
     && candidate.asset.toLowerCase() === value.asset.toLowerCase()) === index);
 
-function required<T>(value: T | undefined, name: string): T {
-  if (value === undefined) throw new AppError(400, 'MARGIN_INPUT_REQUIRED', `${name} is required for this margin action`);
+function required<T>(value: T | undefined, name: string, action?: string): T {
+  if (value === undefined) throw new AppError(
+    400,
+    'MARGIN_INPUT_REQUIRED',
+    `${name} is required for ${action ?? 'this margin action'}`,
+    {
+      blockingReasons: ['PREREQUISITE_MISSING'],
+      missingPrerequisites: [name],
+      nextActions: [`Provide ${name} and prepare ${action ?? 'the margin action'} again with a fresh idempotency key.`],
+      ...(action ? { action } : {}),
+    },
+  );
   return value;
+}
+
+function roleError(requiredRole: string, requiredWallet: string, actualWallet: string, action: string) {
+  return new AppError(403, 'ROLE_NOT_ALLOWED', `Only the ${requiredRole.toLowerCase()} can ${action}`, {
+    blockingReasons: ['ROLE_NOT_ALLOWED'],
+    requiredRole,
+    requiredWallet,
+    actualWallet,
+    nextActions: [`Use the ${requiredRole.toLowerCase()} wallet ${requiredWallet} or select an action allowed for ${actualWallet}.`],
+  });
 }
 
 export class V2PreflightService {
@@ -583,7 +603,7 @@ export class V2PreflightService {
     const actor = input.actor as Address;
     const position = await this.store.getV2Position(input.positionId, market);
     if (!position) throw new AppError(404, 'POSITION_NOT_FOUND', 'V2 position was not found');
-    if (position.seller !== actor.toLowerCase()) throw new AppError(403, 'NOT_SELLER', 'Only the seller can repurchase');
+    if (position.seller !== actor.toLowerCase()) throw roleError('SELLER', position.seller, actor, 'repurchase this position');
     const offer = await this.store.getV2Offer(position.offerId, market);
     if (!offer) throw new AppError(409, 'OFFER_PROJECTION_MISSING', 'The position offer projection is unavailable');
     const reasons: Reason[] = [];
@@ -744,7 +764,7 @@ export class V2PreflightService {
     if (!offer) throw new AppError(404, 'OFFER_NOT_FOUND', 'V2 offer was not found');
     const reasons: Reason[] = [];
     if (!['OPEN', 'PARTIALLY_FILLED'].includes(offer.status)) reasons.push('OFFER_NOT_OPEN');
-    if (action === 'cancelOffer' && offer.seller !== input.actor.toLowerCase()) throw new AppError(403, 'NOT_SELLER', 'Only the seller can cancel an offer');
+    if (action === 'cancelOffer' && offer.seller !== input.actor.toLowerCase()) throw roleError('SELLER', offer.seller, input.actor, 'cancel this offer');
     const chainBlock = await this.chain.blockNumber();
     const chainTimestamp = await this.chain.blockTimestamp(chainBlock);
     if (action === 'finalizeOfferExpiry' && chainTimestamp <= unix(offer.offerExpiry)) reasons.push('OFFER_NOT_OPEN');
@@ -768,15 +788,16 @@ export class V2PreflightService {
       if (position.status !== 'ACTIVE') reasons.push('POSITION_NOT_ACTIVE');
       if (!isStrictlyAfter(chainTimestamp, unix(position.repaymentDeadline))) reasons.push('NOT_AT_MATURITY');
       const oracle = marketMetadata.valuationOracle;
+      let oracleFresh = false;
       if (reasons.length === 0) {
         try {
-          const fresh = await this.chain.hasFreshPrice(
+          oracleFresh = await this.chain.hasFreshPrice(
             oracle,
             position.assetAddress as Address,
             position.settlementToken as Address,
             BigInt(position.maxOracleAgeSeconds),
           );
-          if (!fresh) reasons.push('ORACLE_STALE');
+          if (!oracleFresh) reasons.push('ORACLE_STALE');
         } catch {
           reasons.push('COMPLIANCE_UNAVAILABLE');
         }
@@ -792,11 +813,22 @@ export class V2PreflightService {
         [BigInt(input.positionId)],
         'position',
         input.positionId,
+        {},
+        {
+          onChainStatus: position.status,
+          lifecycleState: isStrictlyAfter(chainTimestamp, unix(position.repaymentDeadline)) ? 'OVERDUE' : position.status,
+          statusAfter: 'AUCTION',
+          repaymentDeadline: unix(position.repaymentDeadline).toString(),
+          oracleStatus: oracleFresh ? 'FRESH' : 'STALE_OR_UNAVAILABLE',
+          valuationResolution: 'SERVER_MANAGED_SIGNED_ORACLE',
+          agentSuppliedValuationRequired: false,
+          callerRole: 'ANY_MANDATE_AUTHORIZED_KEEPER',
+        },
       );
     }
 
     if (position.buyer !== input.actor.toLowerCase()) {
-      throw new AppError(403, 'NOT_LENDER', 'Only the lender can claim collateral');
+      throw roleError('LENDER', position.buyer, input.actor, 'claim this collateral');
     }
     const recipient = (input.recipient ?? input.actor) as Address;
     if (action === 'claimDefaultCollateral') {
@@ -904,7 +936,7 @@ export class V2PreflightService {
     }
     const claim = await this.store.getSettlementClaim(input.claimId, escrow);
     if (!claim) throw new AppError(404, 'CLAIM_NOT_FOUND', 'Settlement claim was not found');
-    if (claim.beneficiary !== input.actor.toLowerCase()) throw new AppError(403, 'NOT_BENEFICIARY', 'Only the claim beneficiary can withdraw');
+    if (claim.beneficiary !== input.actor.toLowerCase()) throw roleError('BENEFICIARY', claim.beneficiary, input.actor, 'withdraw this claim');
     const amount = BigInt(input.amount);
     const remaining = BigInt(claim.remaining);
     const recipient = (input.recipient ?? input.actor) as Address;
@@ -980,6 +1012,7 @@ export class V2PreflightService {
     const reasons: Reason[] = [];
     const edges: TransferEdge[] = [];
     const approvals: PreflightResultV2['requiredApprovals'] = [];
+    const preTransactions: Transaction[] = [];
     const participantChecks: Array<{ wallets: Address[]; token: Address }> = [];
     const amounts: Record<string, string> = { amount: input.amount ?? '0' };
     const projectedState: PreflightResultV2['quote']['projectedState'] = {
@@ -991,6 +1024,7 @@ export class V2PreflightService {
     let data: `0x${string}`;
     let description: string;
     let prerequisitesSatisfied = true;
+    const need = <T>(value: T | undefined, name: string) => required(value, name, action);
     if (!await this.marginSourcesRegistered(engine, metadata)) reasons.push('CONTRACT_NOT_CONFIGURED');
     if (input.asset && input.asset.toLowerCase() !== metadata.asset.toLowerCase()) reasons.push('ASSET_NOT_ALLOWED');
     if (['DEPOSIT', 'OPEN_ACCOUNT', 'FUND_ACCOUNT'].includes(action)) {
@@ -1017,13 +1051,13 @@ export class V2PreflightService {
         || !metadata.cleanverseCustodyReady)) reasons.push('VAULT_NOT_AUTHORIZED');
 
     const loadAccount = async (explicitId?: string) => {
-      const accountId = BigInt(required(explicitId ?? input.accountId, 'accountId'));
+      const accountId = BigInt(need(explicitId ?? input.accountId, 'accountId'));
       const account = await this.chain.marginAccount(engine, accountId);
       if (account.status === 0) throw new AppError(404, 'MARGIN_ACCOUNT_NOT_FOUND', 'Margin account was not found');
       return { accountId, account };
     };
     const loadExposure = async () => {
-      const exposureId = BigInt(required(input.exposureId, 'exposureId'));
+      const exposureId = BigInt(need(input.exposureId, 'exposureId'));
       const exposure = await this.chain.marginExposure(engine, exposureId);
       if (exposure.status === 0) throw new AppError(404, 'MARGIN_EXPOSURE_NOT_FOUND', 'Margin exposure was not found');
       const account = await this.chain.marginAccount(engine, exposure.accountId);
@@ -1031,22 +1065,77 @@ export class V2PreflightService {
     };
 
     if (action === 'DEPOSIT') {
-      const amount = BigInt(required(input.amount, 'amount'));
+      const amount = BigInt(need(input.amount, 'amount'));
+      const collateralSource = input.collateralSource ?? 'AUTO';
       const [balance, allowance] = await Promise.all([
         this.chain.balanceOf(metadata.asset, actor),
         this.chain.allowance(metadata.asset, actor, metadata.vault),
       ]);
-      if (balance < amount) reasons.push('INSUFFICIENT_BALANCE');
+      if (amount <= 0n || amount > MAX_UINT128) reasons.push('INVALID_FILL_AMOUNT');
+      let repoVault = zeroAddress as Address;
+      let repoVaultAvailable = 0n;
+      let repoSweepAmount = 0n;
+      if (collateralSource !== 'WALLET') {
+        const market = this.market();
+        const repoConfig = await this.chain.marketAssetConfig(market, metadata.asset);
+        repoVault = repoConfig.vault;
+        if (repoVault !== zeroAddress) {
+          repoVaultAvailable = await this.chain.vaultAvailable(repoVault, actor).catch(() => 0n);
+        }
+        repoSweepAmount = collateralSource === 'REPO_VAULT'
+          ? amount
+          : balance >= amount ? 0n : amount - balance;
+        if (repoSweepAmount > repoVaultAvailable) reasons.push('INSUFFICIENT_BALANCE');
+        if (repoSweepAmount > 0n) {
+          const marketMetadata = await this.chain.marketMetadata(market).catch(() => null);
+          if (repoVault === zeroAddress || !repoConfig.cleanverseReady || !marketMetadata
+            || !await this.marketSourcesRegistered(market, marketMetadata, repoVault)) {
+            reasons.push('VAULT_NOT_AUTHORIZED');
+          } else {
+            edges.push({
+              token: metadata.asset,
+              from: repoVault,
+              to: actor,
+              amount: repoSweepAmount.toString(),
+              purpose: 'COLLATERAL_RELEASE',
+              policyPool: market,
+            });
+            preTransactions.push({
+              to: market,
+              data: encodeFunctionData({
+                abi: repoMarketV2Abi,
+                functionName: 'withdrawCollateral',
+                args: [metadata.asset, repoSweepAmount, actor],
+              }),
+              value: '0',
+              description: `Sweep ${repoSweepAmount} CVA units from Repo Vault AVAILABLE to the bound wallet`,
+            });
+          }
+        }
+      } else if (balance < amount) {
+        reasons.push('INSUFFICIENT_BALANCE');
+      }
       if (allowance < amount) {
         reasons.push('INSUFFICIENT_ALLOWANCE');
         approvals.push({ token: metadata.asset, spender: metadata.vault, amount: amount.toString() });
       }
       edges.push({ token: metadata.asset, from: actor, to: metadata.vault, amount: amount.toString(), purpose: 'MARGIN_COLLATERAL', policyPool: engine });
       data = encodeFunctionData({ abi: marginEngineV2Abi, functionName: 'depositCollateral', args: [amount] });
-      description = `Deposit ${amount} CVA units into the margin vault`;
+      description = preTransactions.length > 0
+        ? `Deposit ${amount} CVA units into the margin vault after the approved repo-vault sweep`
+        : `Deposit ${amount} CVA units into the margin vault`;
+      Object.assign(amounts, {
+        walletBalance: balance.toString(),
+        repoVaultAvailable: repoVaultAvailable.toString(),
+        repoVaultSweep: repoSweepAmount.toString(),
+      });
       projectedState.bucket = 'AVAILABLE';
+      projectedState.collateralSource = collateralSource;
+      projectedState.repoVault = repoVault;
+      projectedState.marginVault = metadata.vault;
+      projectedState.requiresHumanCustodyApproval = repoSweepAmount > 0n;
     } else if (action === 'WITHDRAW') {
-      const amount = BigInt(required(input.amount, 'amount'));
+      const amount = BigInt(need(input.amount, 'amount'));
       const recipient = (input.recipient ?? actor) as Address;
       const available = await this.chain.vaultAvailable(metadata.vault, actor);
       if (available < amount) reasons.push('INSUFFICIENT_BALANCE');
@@ -1057,12 +1146,12 @@ export class V2PreflightService {
       amounts.availableBefore = available.toString();
       projectedState.recipient = recipient;
     } else if (action === 'OPEN_ACCOUNT') {
-      const amount = BigInt(required(input.amount, 'amount'));
-      const fundingTarget = BigInt(required(input.fundingTarget, 'fundingTarget'));
-      const minimumFunding = BigInt(required(input.minimumFunding, 'minimumFunding'));
-      const maxAnnualRateBps = required(input.maxAnnualRateBps, 'maxAnnualRateBps');
-      const duration = BigInt(required(input.durationSeconds, 'durationSeconds'));
-      const fundingExpiry = BigInt(required(input.fundingExpiry, 'fundingExpiry'));
+      const amount = BigInt(need(input.amount, 'amount'));
+      const fundingTarget = BigInt(need(input.fundingTarget, 'fundingTarget'));
+      const minimumFunding = BigInt(need(input.minimumFunding, 'minimumFunding'));
+      const maxAnnualRateBps = need(input.maxAnnualRateBps, 'maxAnnualRateBps');
+      const duration = BigInt(need(input.durationSeconds, 'durationSeconds'));
+      const fundingExpiry = BigInt(need(input.fundingExpiry, 'fundingExpiry'));
       const permittedLender = (input.permittedLender ?? zeroAddress) as Address;
       const available = await this.chain.vaultAvailable(metadata.vault, actor);
       if (available < amount) reasons.push('INSUFFICIENT_BALANCE');
@@ -1100,19 +1189,19 @@ export class V2PreflightService {
       });
       projectedState.statusAfter = 'HEALTHY';
     } else if (action === 'ADD_COLLATERAL') {
-      const amount = BigInt(required(input.amount, 'amount'));
+      const amount = BigInt(need(input.amount, 'amount'));
       const { accountId, account } = await loadAccount();
-      if (account.seller.toLowerCase() !== actor.toLowerCase()) throw new AppError(403, 'NOT_SELLER', 'Only the account seller can add collateral');
+      if (account.seller.toLowerCase() !== actor.toLowerCase()) throw roleError('SELLER', account.seller, actor, 'add collateral to this account');
       const available = await this.chain.vaultAvailable(metadata.vault, actor);
       if (available < amount) reasons.push('INSUFFICIENT_BALANCE');
       data = encodeFunctionData({ abi: marginEngineV2Abi, functionName: 'addMarginCollateral', args: [accountId, amount] });
       description = `Add ${amount} collateral units to margin account ${accountId}`;
       amounts.collateralAfter = (account.collateralAmount + amount).toString();
     } else if (action === 'WITHDRAW_EXCESS') {
-      const amount = BigInt(required(input.amount, 'amount'));
+      const amount = BigInt(need(input.amount, 'amount'));
       const recipient = (input.recipient ?? actor) as Address;
       const { accountId, account } = await loadAccount();
-      if (account.seller.toLowerCase() !== actor.toLowerCase()) throw new AppError(403, 'NOT_SELLER', 'Only the account seller can withdraw collateral');
+      if (account.seller.toLowerCase() !== actor.toLowerCase()) throw roleError('SELLER', account.seller, actor, 'withdraw collateral from this account');
       if (amount > account.collateralAmount) reasons.push('INSUFFICIENT_BALANCE');
       edges.push({ token: metadata.asset, from: metadata.vault, to: recipient, amount: amount.toString(), purpose: 'COLLATERAL_RELEASE', policyPool: engine });
       participantChecks.push({ wallets: [actor], token: metadata.asset });
@@ -1121,8 +1210,8 @@ export class V2PreflightService {
       amounts.collateralAfter = account.collateralAmount >= amount ? (account.collateralAmount - amount).toString() : '0';
       projectedState.recipient = recipient;
     } else if (action === 'FUND_ACCOUNT') {
-      const principal = BigInt(required(input.amount, 'amount'));
-      const annualRateBps = required(input.annualRateBps, 'annualRateBps');
+      const principal = BigInt(need(input.amount, 'amount'));
+      const annualRateBps = need(input.annualRateBps, 'annualRateBps');
       const { accountId, account } = await loadAccount();
       const duration = account.fundingDuration;
       const remainingFunding = account.fundingTarget - account.totalFunded;
@@ -1181,7 +1270,7 @@ export class V2PreflightService {
       projectedState.maturityAt = new Date(Number(clock.timestamp + BigInt(duration)) * 1000).toISOString();
     } else if (action === 'REPAY') {
       const { exposureId, exposure, account } = await loadExposure();
-      if (account.seller.toLowerCase() !== actor.toLowerCase()) throw new AppError(403, 'NOT_SELLER', 'Only the account seller can repay an exposure');
+      if (account.seller.toLowerCase() !== actor.toLowerCase()) throw roleError('SELLER', account.seller, actor, 'repay this exposure');
       const maxFaceDebt = input.maxFaceDebt ? BigInt(input.maxFaceDebt) : exposure.faceDebt;
       if (maxFaceDebt < exposure.faceDebt) reasons.push('SLIPPAGE_EXCEEDED');
       const lenderEligibility = await this.evaluateParticipants([exposure.lender], metadata.settlementToken, engine, correlationId);
@@ -1208,7 +1297,9 @@ export class V2PreflightService {
       projectedState.paymentDefaultDeclared = true;
     } else if (action === 'CLOSE_FUNDING' || action === 'OPEN_MARGIN_CALL' || action === 'CURE' || action === 'LIQUIDATE' || action === 'START_IN_KIND_ORACLE_FALLBACK' || action === 'CLOSE_ACCOUNT') {
       const { accountId, account } = await loadAccount();
-      if (['CLOSE_FUNDING', 'CLOSE_ACCOUNT'].includes(action) && account.seller.toLowerCase() !== actor.toLowerCase()) throw new AppError(403, 'NOT_SELLER', 'Only the account seller can perform this action');
+      if (['CLOSE_FUNDING', 'CLOSE_ACCOUNT'].includes(action) && account.seller.toLowerCase() !== actor.toLowerCase()) {
+        throw roleError('SELLER', account.seller, actor, `perform ${action}`);
+      }
       if (action === 'CLOSE_FUNDING') {
         data = encodeFunctionData({ abi: marginEngineV2Abi, functionName: 'closeFunding', args: [accountId] });
         description = `Permanently close further funding for margin account ${accountId}`;
@@ -1235,7 +1326,7 @@ export class V2PreflightService {
         projectedState.statusAfter = 'CLOSED';
       }
     } else if (action === 'BUY_AUCTION' || action === 'FINALIZE_FAILED_AUCTION') {
-      const auctionId = BigInt(required(input.auctionId, 'auctionId'));
+      const auctionId = BigInt(need(input.auctionId, 'auctionId'));
       if (action === 'FINALIZE_FAILED_AUCTION') {
         data = encodeFunctionData({ abi: marginEngineV2Abi, functionName: 'finalizeFailedMarginAuction', args: [auctionId] });
         description = `Finalize failed margin auction ${auctionId}`;
@@ -1270,7 +1361,7 @@ export class V2PreflightService {
         description = `Materialize lender settlement claim for exposure ${exposureId}`;
         projectedState.claimBeneficiary = exposure.lender;
       } else {
-        if (exposure.lender.toLowerCase() !== actor.toLowerCase()) throw new AppError(403, 'NOT_LENDER', 'Only the exposure lender can claim in-kind collateral');
+        if (exposure.lender.toLowerCase() !== actor.toLowerCase()) throw roleError('LENDER', exposure.lender, actor, 'claim this in-kind collateral');
         const recipient = (input.recipient ?? actor) as Address;
         let amount = 0n;
         try {
@@ -1309,7 +1400,7 @@ export class V2PreflightService {
       standaloneCompliance.push(...result.compliance);
       reasons.push(...result.reasons);
     }
-    if (prerequisitesSatisfied && reasons.length === 0 && approvals.length === 0) {
+    if (prerequisitesSatisfied && reasons.length === 0 && approvals.length === 0 && preTransactions.length === 0) {
       try {
         await this.chain.simulateTransaction(actor, engine, data);
       } catch {
@@ -1322,7 +1413,7 @@ export class V2PreflightService {
       compliance: uniqueCompliance([...this.complianceFromGraph(evaluated.graph), ...standaloneCompliance]),
       transferGraph: evaluated.graph,
       requiredApprovals: approvals,
-      transactions: [{ to: engine, data, value: '0', description }],
+      transactions: [...preTransactions, { to: engine, data, value: '0', description }],
       quote: this.quote('MARGIN', clock.block, clock.timestamp, amounts, projectedState),
       correlationId,
     };
@@ -1339,6 +1430,8 @@ export class V2PreflightService {
     args: readonly [bigint],
     resourceType: string,
     resourceId: string,
+    amounts: Record<string, string> = {},
+    projectedState: PreflightResultV2['quote']['projectedState'] = {},
   ): Promise<PreflightResultV2> {
     const data = encodeFunctionData({ abi: repoMarketV2Abi, functionName, args });
     if (reasons.length === 0) {
@@ -1351,7 +1444,13 @@ export class V2PreflightService {
       transferGraph: [],
       requiredApprovals: [],
       transactions: [{ to: market, data, value: '0', description: `${functionName} ${resourceType} ${resourceId}` }],
-      quote: this.quote(functionName.includes('Auction') || functionName.includes('Collateral') ? 'AUCTION' : 'CREATE_OFFER', chainBlock, chainTimestamp, {}, { functionName, resourceType, resourceId }),
+      quote: this.quote(
+        functionName.includes('Auction') || functionName.includes('Collateral') ? 'AUCTION' : 'CREATE_OFFER',
+        chainBlock,
+        chainTimestamp,
+        amounts,
+        { functionName, resourceType, resourceId, ...projectedState },
+      ),
       correlationId,
     };
   }

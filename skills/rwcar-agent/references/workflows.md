@@ -16,7 +16,7 @@ Access tokens are intentionally short lived. Refresh by performing another clien
 2. Call `prepare_vault_action` with `DEPOSIT`, asset, amount, and a fresh UUID.
 3. Inspect and execute the intent. It may contain an exact ERC-20 approval step followed by the vault deposit.
 4. Wait for `COMPLETED`, then call `get_portfolio` and confirm available vault inventory.
-5. Determine principal, collateral, annual rate, duration, offer expiry, optional permitted buyer, and valuation from the user's objective and live protocol limits.
+5. Determine principal, collateral, annual rate, duration, offer expiry, and optional permitted buyer from the user's objective and live protocol limits. The server resolves the authorized signed valuation.
 6. Call `prepare_create_offer`, inspect its pro-rata and risk terms, execute, and wait for `COMPLETED`.
 7. Confirm the new offer through `list_offers` or `get_portfolio`.
 
@@ -45,9 +45,9 @@ Access tokens are intentionally short lived. Refresh by performing another clien
 
 ## Default and Dutch auction
 
-1. Confirm the position's maturity and grace period using `get_portfolio`.
-2. Call `prepare_position_action` with `START_AUCTION`; use only a fresh, valid valuation identifier returned by protocol data.
-3. Inspect and execute only after any required human approval.
+1. Read `onChainStatus`, derived `lifecycleState`, oracle freshness, and `defaultAutomation` from `get_portfolio`. `OVERDUE` appears immediately after the grace deadline even while the authoritative on-chain enum remains `ACTIVE` until the keeper transaction lands.
+2. When `lifecycleState` is `OVERDUE` and `oracle.fresh` is true, call `prepare_position_action` with `START_AUCTION`. Do not provide or invent a valuation ID; RWCAR resolves the current signed valuation server-side.
+3. The durable keeper is already scheduled and may win the race. A seller, lender, or third-party agent whose signed mandate includes `START_AUCTION` may also prepare it. Inspect and execute only after human approval.
 4. Auction buyer calls `list_auctions`, then `prepare_auction_action` with `BUY` and a protective `maxPrice`.
 5. RWCAR uses first successful fill at the live Dutch price, not a multi-bid order book. Another buyer may win first.
 6. If no purchase occurs by the deadline, call `prepare_auction_action` with `FINALIZE_FAILED`, then use the position claim path indicated by portfolio state.
@@ -56,11 +56,12 @@ Auction purchases and other liquidation-risk actions are expected to require hum
 
 ## Shared-collateral margin
 
-1. Call `get_margin_accounts` and select an on-chain account involving the agent wallet.
-2. Read its collateral, debt, LTV, oracle freshness, funding mandate, margin-call deadline, and exposures.
-3. Call `prepare_margin_action` with exactly one supported semantic action and a fresh UUID.
-4. Margin actions are high risk and should remain human-approved.
-5. After repayment or liquidation, use `get_portfolio` and `get_margin_accounts` to find settlement claims and withdraw through `prepare_claim`.
+1. Call `get_margin_accounts`. Read `collateralSources`, `fundableAccounts`, and the returned numbered workflow before preparing a write.
+2. Seller prepares `DEPOSIT` first. Use `collateralSource=AUTO` to consume wallet inventory and, if needed, compose an approved Repo Vault `AVAILABLE` sweep; use `WALLET` or `REPO_VAULT` only when the source is explicitly required.
+3. After deposit completion, seller prepares `OPEN_ACCOUNT` to reserve margin-vault `AVAILABLE` collateral into a netting set.
+4. An eligible non-seller lender selects the account from `fundableAccounts` and prepares `FUND_ACCOUNT`.
+5. Read collateral, debt, LTV, oracle freshness, margin-call deadline, and exposures before every later action. Margin actions remain human-approved.
+6. After repayment or liquidation, use `get_portfolio` and `get_margin_accounts` to find settlement claims and withdraw through `prepare_claim`.
 
 ## Human approval handoff
 
@@ -73,4 +74,4 @@ When an intent reports `APPROVAL_REQUIRED`, provide the administrator:
 - intent ID, immutable intent hash, and expiry;
 - why policy required approval.
 
-The administrator signs in the RWCAR Agent Console. After approval appears in `get_execution_status`, call `execute_intent` with the original hash.
+Use the returned `approvalHandoff.challengeEndpoint` and `submissionEndpoint` only through the authenticated institution administrator flow. The administrator signs the challenge in the RWCAR Agent Console. After approval appears in the SSE feed or `get_execution_status`, call `execute_intent` with the original hash.

@@ -8,9 +8,9 @@
 
 ## Economic and lifecycle errors
 
-- `INSUFFICIENT_BALANCE`: re-read portfolio/vault data. Never reduce an amount without user authorization.
-- `INSUFFICIENT_ALLOWANCE`: a prepared intent may include an exact approval step. If execution partially completed, inspect status before preparing again.
-- `ORACLE_STALE`: do not bypass freshness. Wait for an authorized valuation refresh and prepare a new intent.
+- `INSUFFICIENT_BALANCE`: re-read wallet and both vault sources. For margin `DEPOSIT`, use `collateralSource=AUTO` or `REPO_VAULT` only when Repo Vault `AVAILABLE` covers the requested sweep. Never reduce an amount without user authorization.
+- `INSUFFICIENT_ALLOWANCE`: if listed in `resolvedByTransactions`, the exact approval is already part of the execution plan and is not a blocker. If execution partially completed, inspect status before preparing again.
+- `ORACLE_STALE`: do not bypass freshness or submit a valuation. Wait for `oracle.fresh=true` from the server-managed signed heartbeat, then prepare a new intent.
 - `OFFER_NOT_OPEN`, `POSITION_NOT_ACTIONABLE`, `AUCTION_NOT_ACTIVE`: refresh the relevant read model; another transaction or chain time changed the lifecycle.
 - `QUOTE_EXPIRED`, `INTENT_EXPIRED`: prepare a new intent with a new UUID and present changed economics again.
 - `MAX_PRICE_EXCEEDED`, rate, duration, LTV, or notional bounds: stop and report the signed-mandate or risk limit that blocked execution.
@@ -20,6 +20,9 @@
 - `INSUFFICIENT_SCOPE`: the credential was not granted that capability. Ask an administrator to issue or rotate a least-privilege credential.
 - `AGENT_PAUSED`, `AGENT_REVOKED`, `MANDATE_REQUIRED`, `MANDATE_EXPIRED`: stop; only the institution administrator can restore authority.
 - `APPROVAL_REQUIRED`: do not repeatedly call execute. Hand the immutable intent to the administrator.
+- `ACTION_NOT_ALLOWED`: the signed mandate excludes the action. Use `approvalHandoff` only for approvable intents; a denial requires an administrator-signed replacement mandate.
+- `ROLE_NOT_ALLOWED`: use the role identified in `blockingDetails`; changing credentials does not change the bound wallet's on-chain role.
+- `MARGIN_INPUT_REQUIRED`: provide every field in `details.missingPrerequisites`, follow `details.nextActions`, and prepare again with a fresh UUID.
 - `INTENT_HASH_MISMATCH`: treat as a security incident. Do not execute; compare against the original preparation result.
 - `IDEMPOTENCY_CONFLICT`: query the existing intent associated with that key. Never repurpose a UUID for different inputs.
 

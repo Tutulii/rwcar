@@ -48,6 +48,8 @@ export const BlockingReasonSchema = z.enum([
   'LTV_LIMIT_EXCEEDED',
   'SLIPPAGE_EXCEEDED',
   'TRANSACTION_WOULD_REVERT',
+  'ROLE_NOT_ALLOWED',
+  'PREREQUISITE_MISSING',
 ]);
 
 export const ComplianceResultSchema = z.object({

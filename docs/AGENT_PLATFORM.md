@@ -33,6 +33,7 @@ An agent starts with `GET /agent-discovery.json`. The response publishes:
 - the canonical MCP resource URI;
 - OAuth authorization-server and protected-resource metadata;
 - the token, MCP, and OpenAPI endpoints;
+- the durable event feed and resumable SSE endpoint;
 - the reviewed skill manifest and download URLs;
 - the exact 17-tool name list and safety capabilities.
 
@@ -61,10 +62,10 @@ Client secrets are displayed once. RWCAR stores only a scrypt hash. A credential
 3. Connect to the streamable HTTP `/mcp` endpoint with the bearer token.
 4. Call `get_protocol_info`, `list_verified_assets`, and `check_eligibility` before selecting an action.
 5. Generate one UUID idempotency key and call the matching `prepare_*` tool. A retry must reuse the same key and exact inputs.
-6. Review the intent hash, policy decision, live quote, blocking reasons, destinations, selectors, and transaction steps.
-7. Stop at `APPROVAL_REQUIRED`. Only the institution administrator can sign the hash-bound approval in the Console.
+6. Review the intent hash, policy decision, live quote, `blockingDetails`, `resolvedByTransactions`, projected state, next actions, destinations, selectors, and transaction steps.
+7. Stop at `APPROVAL_REQUIRED`. Pass the returned `approvalHandoff` to the institution administrator; only that administrator can sign the hash-bound approval in the Console.
 8. Call `execute_intent` with the exact intent ID/hash. The executor refreshes preflight before every not-yet-submitted step and refuses semantic drift.
-9. Poll `get_execution_status` through receipt confirmation and finalized index projection. Only `COMPLETED` is a fully reconciled success.
+9. Resume `/agent/v1/events/stream` by event UUID or poll `get_execution_status` through receipt confirmation and finalized index projection. Only `COMPLETED` is a fully reconciled success.
 
 The exact tool contracts and workflows are in [the packaged skill](../skills/rwcar-agent/SKILL.md).
 
@@ -82,6 +83,12 @@ The exact tool contracts and workflows are in [the packaged skill](../skills/rwc
 | terminal denial/failure states | No further execution | Inspect error and transaction history |
 
 If an allowance transaction confirms but a later protocol transaction fails, the intent becomes `FAILED_WITH_ALLOWANCE`. This is an incident state, not a clean retry: inspect the live allowance and prepare a new semantic action only with a new UUID.
+
+An `INSUFFICIENT_ALLOWANCE` entry in `resolvedByTransactions` is not a denial: the exact approval is already a reviewed step. A `DENIED` response can never have an empty blocker list. `ACTION_NOT_ALLOWED` means the signed mandate excludes the action; `ROLE_NOT_ALLOWED` means the wallet lacks the required seller/lender/beneficiary role.
+
+Portfolio reads preserve the raw on-chain status and add a derived lifecycle state. An ACTIVE position becomes `OVERDUE` immediately after its repayment deadline while the durable keeper retries `startAuction`; supported lifecycle jobs do not dead-letter on temporary oracle or RPC outages. Valuations are selected from the server-managed signed oracle, never supplied by an agent.
+
+Margin discovery includes public fundable accounts and wallet/repo-vault/margin-vault balances. A `DEPOSIT` with `collateralSource=AUTO` can compose a Repo Vault AVAILABLE withdrawal and MarginEngine deposit under the existing human approval gate; executor re-preflight compares only the unexecuted suffix after each confirmed step.
 
 ## Safety invariants
 
