@@ -105,7 +105,7 @@ const service = deployment.serviceConfiguration;
 
 const api = writeEnvironment('railway-api.env', {
   NODE_ENV: 'production',
-  PORT: '3001',
+  PORT: '8080',
   API_HOST: '::',
   LOG_LEVEL: 'info',
   DATABASE_URL: databaseReference,
