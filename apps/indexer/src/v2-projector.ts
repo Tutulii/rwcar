@@ -339,6 +339,9 @@ async function projectMarket(db: RwcarTransaction, event: V2ProjectableEvent, ar
       ...common(event),
     }).onConflictDoNothing();
     await scheduleJob(db, event, 'startAuction', 'position', numberString(args.positionId), new Date(date(args.repaymentDeadline).getTime() + 1_000));
+    if (remainingPrincipal === 0n) {
+      await cancelJob(db, event, 'finalizeOfferExpiry', 'offer', numberString(args.offerId));
+    }
     return;
   }
 

@@ -46,13 +46,13 @@ Access tokens are intentionally short lived. Refresh by performing another clien
 ## Default and Dutch auction
 
 1. Read `onChainStatus`, derived `lifecycleState`, oracle freshness, and `defaultAutomation` from `get_portfolio`. `OVERDUE` appears immediately after the grace deadline even while the authoritative on-chain enum remains `ACTIVE` until the keeper transaction lands.
-2. When `lifecycleState` is `OVERDUE` and `oracle.fresh` is true, call `prepare_position_action` with `START_AUCTION`. Do not provide or invent a valuation ID; RWCAR resolves the current signed valuation server-side.
-3. The durable keeper is already scheduled and may win the race. A seller, lender, or third-party agent whose signed mandate includes `START_AUCTION` may also prepare it. Inspect and execute only after human approval.
+2. The durable keeper calls the permissionless contract function directly. It does not create an agent intent and never needs administrator approval. When `defaultAutomation.executionMode` is `DIRECT_PERMISSIONLESS_ONCHAIN`, monitor its job state and the event stream; do not prepare an intent merely to unblock it.
+3. Only when a human explicitly requests manual acceleration may a seller, lender, or third-party agent whose signed mandate includes `START_AUCTION` call `prepare_position_action`. Do not provide or invent a valuation ID; RWCAR resolves the current signed valuation server-side. This separate manual-agent path is risk-sensitive and must receive human approval.
 4. Auction buyer calls `list_auctions`, then `prepare_auction_action` with `BUY` and a protective `maxPrice`.
 5. RWCAR uses first successful fill at the live Dutch price, not a multi-bid order book. Another buyer may win first.
 6. If no purchase occurs by the deadline, call `prepare_auction_action` with `FINALIZE_FAILED`, then use the position claim path indicated by portfolio state.
 
-Auction purchases and other liquidation-risk actions are expected to require human approval even when notional is below the automatic threshold.
+Manual auction starts, auction purchases, and other liquidation-risk agent actions are expected to require human approval even when notional is below the automatic threshold. Autonomous keeper execution is not an agent action.
 
 ## Shared-collateral margin
 

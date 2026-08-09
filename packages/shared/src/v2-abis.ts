@@ -18,6 +18,8 @@ export const protocolModuleFactoryV2Abi = [
 ] as const;
 
 export const repoMarketV2Abi = [
+  { type: 'error', name: 'DefaultWindowNotOpen', inputs: [] },
+  { type: 'error', name: 'InvalidStatus', inputs: [] },
   { type: 'function', name: 'depositCollateral', stateMutability: 'nonpayable', inputs: [
     { name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' },
   ], outputs: [] },
@@ -60,6 +62,37 @@ export const repoMarketV2Abi = [
   { type: 'function', name: 'previewPayoff', stateMutability: 'view', inputs: [
     { name: 'positionId', type: 'uint256' }, { name: 'atTimestamp', type: 'uint256' },
   ], outputs: [{ name: 'payoff', type: 'uint256' }] },
+  { type: 'function', name: 'getOffer', stateMutability: 'view', inputs: [
+    { name: 'offerId', type: 'uint256' },
+  ], outputs: [{ name: '', type: 'tuple', components: [
+    { name: 'seller', type: 'address' }, { name: 'permittedBuyer', type: 'address' },
+    { name: 'asset', type: 'address' }, { name: 'vault', type: 'address' },
+    { name: 'totalCollateral', type: 'uint128' }, { name: 'targetPrincipal', type: 'uint128' },
+    { name: 'filledPrincipal', type: 'uint128' }, { name: 'allocatedCollateral', type: 'uint128' },
+    { name: 'feeCharged', type: 'uint128' }, { name: 'minimumFill', type: 'uint128' },
+    { name: 'annualRateBps', type: 'uint32' }, { name: 'defaultAnnualRateBps', type: 'uint32' },
+    { name: 'duration', type: 'uint64' }, { name: 'offerExpiry', type: 'uint64' },
+    { name: 'earlyMinHoldBps', type: 'uint16' }, { name: 'earlyBreakFeeBps', type: 'uint16' },
+    { name: 'earlyRepurchaseEnabled', type: 'bool' }, { name: 'status', type: 'uint8' },
+    { name: 'valuationDigest', type: 'bytes32' },
+  ] }] },
+  { type: 'function', name: 'getPosition', stateMutability: 'view', inputs: [
+    { name: 'positionId', type: 'uint256' },
+  ], outputs: [{ name: '', type: 'tuple', components: [
+    { name: 'offerId', type: 'uint256' }, { name: 'auctionId', type: 'uint256' },
+    { name: 'seller', type: 'address' }, { name: 'buyer', type: 'address' },
+    { name: 'asset', type: 'address' }, { name: 'vault', type: 'address' },
+    { name: 'collateralAmount', type: 'uint128' }, { name: 'principalAmount', type: 'uint128' },
+    { name: 'frozenDebt', type: 'uint256' }, { name: 'annualRateBps', type: 'uint32' },
+    { name: 'defaultAnnualRateBps', type: 'uint32' }, { name: 'duration', type: 'uint64' },
+    { name: 'acceptedAt', type: 'uint64' }, { name: 'maturity', type: 'uint64' },
+    { name: 'repaymentDeadline', type: 'uint64' }, { name: 'earlyMinHoldBps', type: 'uint16' },
+    { name: 'earlyBreakFeeBps', type: 'uint16' }, { name: 'liquidationFeeBps', type: 'uint16' },
+    { name: 'auctionStartBps', type: 'uint16' }, { name: 'auctionFloorBps', type: 'uint16' },
+    { name: 'auctionDuration', type: 'uint64' }, { name: 'maxOracleAge', type: 'uint64' },
+    { name: 'staleOracleFallbackDelay', type: 'uint64' }, { name: 'earlyRepurchaseEnabled', type: 'bool' },
+    { name: 'status', type: 'uint8' }, { name: 'closeoutValuationDigest', type: 'bytes32' },
+  ] }] },
   { type: 'event', name: 'OfferCreated', anonymous: false, inputs: [
     { indexed: true, name: 'offerId', type: 'uint256' }, { indexed: true, name: 'seller', type: 'address' },
     { indexed: true, name: 'asset', type: 'address' }, { indexed: false, name: 'collateralAmount', type: 'uint256' },

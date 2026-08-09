@@ -8,6 +8,7 @@ import {
   encodeFunctionData,
   http,
   keccak256,
+  parseTransaction,
   type Address,
   type Hex,
 } from 'viem';
@@ -16,7 +17,12 @@ import type { IndexerConfig, V2DeploymentSource } from './config.js';
 import { v2Consumer } from './v2-indexer.js';
 
 const LEASE_MS = 120_000;
-const MAX_BATCH = 10;
+// A single keeper signer must never author two different jobs from the same
+// pending nonce. Resolve the durable outbox head before preparing another job.
+const MAX_BATCH = 1;
+const OFFER_STATUS_OPEN = 1;
+const OFFER_STATUS_PARTIALLY_FILLED = 2;
+const POSITION_STATUS_ACTIVE = 1;
 type V2JobAction =
   | 'finalizeOfferExpiry'
   | 'startAuction'
@@ -64,6 +70,32 @@ export function isSupportedV2JobAction(action: string): action is V2JobAction {
 
 export function isSignedAutomationTransaction(value: unknown): value is Hex {
   return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2})+$/.test(value);
+}
+
+export type StaleAutomationTransactionReason = 'NONCE_CONSUMED' | 'MISSING_FROM_PENDING_POOL';
+
+export function staleAutomationTransactionReason(input: {
+  transactionNonce: bigint | null;
+  latestNonce: bigint;
+  pendingNonce: bigint;
+  preparedAt: Date | null;
+  now: Date;
+  staleAfterMs: number;
+}): StaleAutomationTransactionReason | null {
+  if (input.transactionNonce === null) return null;
+  if (input.latestNonce > input.transactionNonce) return 'NONCE_CONSUMED';
+  if (!input.preparedAt || input.now.getTime() - input.preparedAt.getTime() < input.staleAfterMs) return null;
+  return input.pendingNonce <= input.transactionNonce ? 'MISSING_FROM_PENDING_POOL' : null;
+}
+
+export function replacementFee(original: bigint | undefined, current: bigint) {
+  if (original === undefined) return current;
+  const bumped = original + (original / 8n) + 1n;
+  return bumped > current ? bumped : current;
+}
+
+export function preparedTransactionMaxCost(gas: bigint, feePerGas: bigint, value = 0n) {
+  return gas * feePerGas + value;
 }
 
 export function v2AutomationCheckpointState(
@@ -141,7 +173,10 @@ export class V2AutomationWorker {
         and(eq(automationJobs.status, 'RUNNING'), lt(automationJobs.lockedAt, staleLease)),
         and(eq(automationJobs.status, 'DEAD'), inArray(automationJobs.action, [...V2_JOB_ACTIONS])),
       ),
-    )).orderBy(asc(automationJobs.nextAttemptAt)).limit(MAX_BATCH);
+    )).orderBy(
+      sql`case when ${automationJobs.status} = 'SUBMITTED' then 0 else 1 end`,
+      asc(automationJobs.nextAttemptAt),
+    ).limit(MAX_BATCH);
 
     const claimed = [];
     for (const candidate of candidates) {
@@ -179,6 +214,36 @@ export class V2AutomationWorker {
       inArray(automationJobs.status, ['RUNNING', 'SUBMITTED']),
       or(eq(automationJobs.lockedBy, this.workerId), eq(automationJobs.txHash, txHash.toLowerCase())),
     ));
+  }
+
+  private async cancelObsolete(job: typeof automationJobs.$inferSelect, reason: string) {
+    await this.db.update(automationJobs).set({
+      status: 'CANCELLED',
+      lockedBy: null,
+      lockedAt: null,
+      completedAt: new Date(),
+      updatedAt: new Date(),
+      lastError: reason.slice(0, 2_000),
+      signedTransaction: null,
+    }).where(and(
+      eq(automationJobs.id, job.id),
+      eq(automationJobs.status, 'RUNNING'),
+      eq(automationJobs.lockedBy, this.workerId),
+    ));
+    console.log(`V2 automation ${job.action}(${job.resourceId}) reconciled without a transaction: ${reason}`);
+  }
+
+  private async assertKeeperGasFunded(gas: bigint | undefined, feePerGas: bigint | undefined, value = 0n) {
+    if (gas === undefined || feePerGas === undefined) throw new Error('Prepared keeper transaction is missing bounded gas fields');
+    const [balance, pendingBalance] = await Promise.all([
+      this.publicClient.getBalance({ address: this.account.address, blockTag: 'latest' }),
+      this.publicClient.getBalance({ address: this.account.address, blockTag: 'pending' }),
+    ]);
+    const available = balance < pendingBalance ? balance : pendingBalance;
+    const required = preparedTransactionMaxCost(gas, feePerGas, value);
+    if (available < required) {
+      throw new Error(`Keeper gas reserve insufficient: requires at most ${required} wei, available ${available} wei`);
+    }
   }
 
   private async markPrepared(id: string, txHash: Hex, signedTransaction: Hex, nonce: number) {
@@ -269,6 +334,145 @@ export class V2AutomationWorker {
     }
   }
 
+  private async reconcileRepoTerminalState(job: typeof automationJobs.$inferSelect) {
+    if (job.action === 'finalizeOfferExpiry') {
+      const offer = await this.publicClient.readContract({
+        address: job.contractAddress as Address,
+        abi: repoMarketV2Abi,
+        functionName: 'getOffer',
+        args: [BigInt(job.resourceId)],
+      });
+      if (offer.status !== OFFER_STATUS_OPEN && offer.status !== OFFER_STATUS_PARTIALLY_FILLED) {
+        await this.cancelObsolete(job, `Offer is already terminal on-chain (status ${offer.status})`);
+        return true;
+      }
+    }
+    if (job.action === 'startAuction') {
+      const position = await this.publicClient.readContract({
+        address: job.contractAddress as Address,
+        abi: repoMarketV2Abi,
+        functionName: 'getPosition',
+        args: [BigInt(job.resourceId)],
+      });
+      if (position.status !== POSITION_STATUS_ACTIVE) {
+        await this.cancelObsolete(job, `Position is already terminal on-chain (status ${position.status})`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async simulateAndEncode(job: typeof automationJobs.$inferSelect) {
+    const repoAction = ['finalizeOfferExpiry', 'startAuction', 'finalizeFailedAuction'].includes(job.action);
+    if (repoAction) {
+      const functionName = job.action as 'finalizeOfferExpiry' | 'startAuction' | 'finalizeFailedAuction';
+      await this.publicClient.simulateContract({
+        account: this.account,
+        address: job.contractAddress as Address,
+        abi: repoMarketV2Abi,
+        functionName,
+        args: [BigInt(job.resourceId)],
+      });
+      return encodeFunctionData({ abi: repoMarketV2Abi, functionName, args: [BigInt(job.resourceId)] });
+    }
+    const functionName = job.action as 'declarePaymentDefault' | 'startMarginLiquidation' | 'finalizeFailedMarginAuction' | 'startInKindOracleFallback' | 'materializeLiquidationClaim';
+    await this.publicClient.simulateContract({
+      account: this.account,
+      address: job.contractAddress as Address,
+      abi: marginEngineV2Abi,
+      functionName,
+      args: [BigInt(job.resourceId)],
+    });
+    return encodeFunctionData({ abi: marginEngineV2Abi, functionName, args: [BigInt(job.resourceId)] });
+  }
+
+  private async replaceStaleSubmitted(
+    job: typeof automationJobs.$inferSelect,
+    previousHash: Hex,
+    reason: StaleAutomationTransactionReason,
+  ) {
+    if (!isSignedAutomationTransaction(job.signedTransaction) || job.transactionNonce === null) {
+      await this.fail(job, new Error(`Cannot replace stale automation transaction: durable envelope is incomplete (${reason})`));
+      return;
+    }
+    if (keccak256(job.signedTransaction).toLowerCase() !== previousHash.toLowerCase()) {
+      await this.deferSubmitted(job.id, previousHash, 'Signed transaction hash mismatch; manual intervention required');
+      return;
+    }
+
+    const parsed = parseTransaction(job.signedTransaction);
+    const nonceValue = BigInt(job.transactionNonce);
+    if (parsed.nonce === undefined || BigInt(parsed.nonce) !== nonceValue || nonceValue > BigInt(Number.MAX_SAFE_INTEGER)) {
+      await this.deferSubmitted(job.id, previousHash, 'Signed transaction nonce mismatch; manual intervention required');
+      return;
+    }
+    const data = await this.simulateAndEncode(job);
+    if (
+      parsed.to?.toLowerCase() !== job.contractAddress.toLowerCase()
+      || parsed.data?.toLowerCase() !== data.toLowerCase()
+      || (parsed.value ?? 0n) !== 0n
+      || parsed.gas === undefined
+    ) {
+      await this.deferSubmitted(job.id, previousHash, 'Signed transaction does not match the immutable automation call; manual intervention required');
+      return;
+    }
+
+    const nonce = Number(nonceValue);
+    let signedTransaction: Hex;
+    if (parsed.type === 'legacy') {
+      const currentGasPrice = await this.publicClient.getGasPrice();
+      const gasPrice = replacementFee(parsed.gasPrice, currentGasPrice);
+      await this.assertKeeperGasFunded(parsed.gas, gasPrice);
+      const prepared = await this.walletClient.prepareTransactionRequest({
+        account: this.account,
+        to: job.contractAddress as Address,
+        data,
+        value: 0n,
+        nonce,
+        gas: parsed.gas,
+        gasPrice,
+        type: 'legacy',
+      });
+      signedTransaction = await this.walletClient.signTransaction(prepared);
+    } else if (parsed.type === 'eip1559') {
+      const currentFees = await this.publicClient.estimateFeesPerGas({ type: 'eip1559' });
+      const maxPriorityFeePerGas = replacementFee(parsed.maxPriorityFeePerGas, currentFees.maxPriorityFeePerGas);
+      let maxFeePerGas = replacementFee(parsed.maxFeePerGas, currentFees.maxFeePerGas);
+      if (maxFeePerGas < maxPriorityFeePerGas) maxFeePerGas = maxPriorityFeePerGas;
+      await this.assertKeeperGasFunded(parsed.gas, maxFeePerGas);
+      const prepared = await this.walletClient.prepareTransactionRequest({
+        account: this.account,
+        to: job.contractAddress as Address,
+        data,
+        value: 0n,
+        nonce,
+        gas: parsed.gas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        type: 'eip1559',
+      });
+      signedTransaction = await this.walletClient.signTransaction(prepared);
+    } else {
+      await this.deferSubmitted(job.id, previousHash, `Unsupported signed transaction type ${parsed.type}; manual intervention required`);
+      return;
+    }
+
+    const replacementHash = keccak256(signedTransaction);
+    await this.markPrepared(job.id, replacementHash, signedTransaction, nonce);
+    try {
+      const broadcastHash = await this.publicClient.sendRawTransaction({ serializedTransaction: signedTransaction });
+      if (broadcastHash.toLowerCase() !== replacementHash.toLowerCase()) {
+        throw new Error(`RPC returned unexpected replacement transaction hash ${broadcastHash}`);
+      }
+      await this.markBroadcast(job.id, replacementHash);
+      await this.deferSubmitted(job.id, replacementHash, `Replaced stale transaction ${previousHash} with the same nonce and call (${reason})`);
+      console.log(`V2 automation ${job.action}(${job.resourceId}) replaced stale transaction ${previousHash} with ${replacementHash} (${reason}).`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.deferSubmitted(job.id, replacementHash, `Replacement persisted; broadcast pending: ${message}`);
+    }
+  }
+
   private async reconcileSubmitted(job: typeof automationJobs.$inferSelect, txHash: Hex) {
     try {
       const receipt = await this.publicClient.getTransactionReceipt({ hash: txHash });
@@ -285,9 +489,9 @@ export class V2AutomationWorker {
       console.log(`V2 automation ${job.action}(${job.resourceId}) finalized: ${txHash}`);
     } catch (error) {
       let message = error instanceof Error ? error.message : String(error);
-      // A signed outbox row is durable before first broadcast. Re-sending the
-      // exact bytes is idempotent (same nonce, signature and hash), closing the
-      // process-crash/RPC-timeout window without ever authoring a second call.
+      // A signed outbox row is durable before first broadcast. Re-send the
+      // exact bytes first; only a transaction proven stale by both age and the
+      // account nonce views may be replaced with the same nonce and calldata.
       if (isSignedAutomationTransaction(job.signedTransaction)) {
         const signedTransaction = job.signedTransaction;
         if (keccak256(signedTransaction).toLowerCase() !== txHash.toLowerCase()) {
@@ -306,6 +510,33 @@ export class V2AutomationWorker {
           message = `Receipt pending; exact rebroadcast response: ${detail}`;
         }
       }
+      if (job.transactionNonce !== null) {
+        try {
+          const [latestNonce, pendingNonce] = await Promise.all([
+            this.publicClient.getTransactionCount({ address: this.account.address, blockTag: 'latest' }),
+            this.publicClient.getTransactionCount({ address: this.account.address, blockTag: 'pending' }),
+          ]);
+          const staleReason = staleAutomationTransactionReason({
+            transactionNonce: BigInt(job.transactionNonce),
+            latestNonce: BigInt(latestNonce),
+            pendingNonce: BigInt(pendingNonce),
+            preparedAt: job.preparedAt,
+            now: new Date(),
+            staleAfterMs: this.config.V2_AUTOMATION_STALE_TX_MS,
+          });
+          if (staleReason === 'NONCE_CONSUMED') {
+            await this.fail(job, new Error('Signed automation nonce was consumed without the expected receipt; re-simulating at the current nonce'));
+            return;
+          }
+          if (staleReason === 'MISSING_FROM_PENDING_POOL') {
+            await this.replaceStaleSubmitted(job, txHash, staleReason);
+            return;
+          }
+        } catch (nonceError) {
+          const detail = nonceError instanceof Error ? nonceError.message : String(nonceError);
+          message = `${message}; nonce reconciliation unavailable: ${detail}`;
+        }
+      }
       await this.deferSubmitted(job.id, txHash, message);
     }
   }
@@ -319,43 +550,28 @@ export class V2AutomationWorker {
     let preparedPersisted = false;
     try {
       this.assertDestination(job);
+      if (await this.reconcileRepoTerminalState(job)) return;
       if (job.txHash) {
         await this.reconcileSubmitted(job, job.txHash as Hex);
         return;
       }
-      const repoAction = ['finalizeOfferExpiry', 'startAuction', 'finalizeFailedAuction'].includes(job.action);
-      let data: Hex;
-      if (repoAction) {
-        const functionName = job.action as 'finalizeOfferExpiry' | 'startAuction' | 'finalizeFailedAuction';
-        await this.publicClient.simulateContract({
-          account: this.account,
-          address: job.contractAddress as Address,
-          abi: repoMarketV2Abi,
-          functionName,
-          args: [BigInt(job.resourceId)],
-        });
-        data = encodeFunctionData({ abi: repoMarketV2Abi, functionName, args: [BigInt(job.resourceId)] });
-      } else {
-        const functionName = job.action as 'declarePaymentDefault' | 'startMarginLiquidation' | 'finalizeFailedMarginAuction' | 'startInKindOracleFallback' | 'materializeLiquidationClaim';
-        await this.publicClient.simulateContract({
-          account: this.account,
-          address: job.contractAddress as Address,
-          abi: marginEngineV2Abi,
-          functionName,
-          args: [BigInt(job.resourceId)],
-        });
-        data = encodeFunctionData({ abi: marginEngineV2Abi, functionName, args: [BigInt(job.resourceId)] });
-      }
+      const data = await this.simulateAndEncode(job);
       const prepared = await this.walletClient.prepareTransactionRequest({
         account: this.account,
         to: job.contractAddress as Address,
         data,
       });
+      await this.assertKeeperGasFunded(
+        prepared.gas,
+        prepared.maxFeePerGas ?? prepared.gasPrice,
+        prepared.value ?? 0n,
+      );
       const signedTransaction = await this.walletClient.signTransaction(prepared);
       preparedHash = keccak256(signedTransaction);
       // Transaction bytes and their deterministic hash are committed before
       // any network broadcast. A crash on either side of sendRawTransaction is
-      // recovered by rebroadcasting these exact bytes, never a new transaction.
+      // recovered by exact rebroadcast, with bounded same-nonce replacement
+      // only after the transaction is absent from the pending nonce view.
       await this.markPrepared(job.id, preparedHash, signedTransaction, prepared.nonce);
       preparedPersisted = true;
       const broadcastHash = await this.publicClient.sendRawTransaction({ serializedTransaction: signedTransaction });

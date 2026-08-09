@@ -9,7 +9,7 @@ RWCAR exposes exactly 17 semantic tools. Inputs use decimal strings for `uint256
 3. `list_verified_assets` — enabled Cleanverse-issued CVAs accepted by V2.
 4. `list_offers` — finalized open repo offers.
 5. `get_offer_quote` — inputs: `offerId`, `principalAmount`; deterministic pro-rata economics without an intent.
-6. `get_portfolio` — offers, positions, derived `OVERDUE` state, latest authorized valuation, default-keeper status, role-specific next actions, vault buckets, claims, and recent activity.
+6. `get_portfolio` — offers, positions, derived `OVERDUE` state, latest authorized valuation, default-keeper status and execution mode, role-specific next actions, vault buckets, claims, and recent activity. `defaultAutomation.humanApprovalRequired=false` identifies the direct permissionless keeper path.
 7. `get_margin_accounts` — owned/financed accounts, public fundable accounts, collateral-source balances, ordered workflow, exposures, margin calls, and lender relationships.
 8. `list_auctions` — input: optional `includeClosed`; current and historical Dutch auctions.
 9. `get_execution_status` — input: `intentId`; policy, approval, steps, transaction hashes, indexing, and terminal error.
@@ -35,13 +35,13 @@ Every prepared or status response includes `state`, `policyDecision`, nonempty d
 | Action | Permitted on-chain actor |
 |---|---|
 | Repay isolated position | Seller |
-| Start overdue auction | Any caller after the deadline; the signed mandate must include `START_AUCTION` |
+| Start overdue auction | Direct keeper: any caller after the deadline, no agent approval. Manual agent: mandate must include `START_AUCTION` and policy may require administrator approval. |
 | Buy isolated auction | CVI-eligible non-seller; first successful fill wins |
 | Claim failed-auction collateral | Position lender |
 | Open/add/repay margin account | Account seller, subject to action-specific rules |
 | Fund margin account | Permitted lender, or any eligible non-seller when public |
 
-An `ACTION_NOT_ALLOWED` denial is a mandate restriction, not an on-chain wallet-role failure. A `ROLE_NOT_ALLOWED` error identifies an actor-role mismatch.
+An `ACTION_NOT_ALLOWED` denial is a restriction on the manual agent intent, not an on-chain wallet-role failure and not a keeper failure. A `ROLE_NOT_ALLOWED` error identifies an actor-role mismatch.
 
 ## Execution tool
 

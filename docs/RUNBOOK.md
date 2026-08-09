@@ -233,7 +233,7 @@ Only after the smoke report is approved may governance leave isolated-market rea
 2. Set `V2_DEPLOYMENTS_JSON` to the complete source array emitted by the deployment script, including both engines' child vault/auction/escrow addresses. Do not guess deployment blocks.
 3. Apply the additive database migration before starting the new indexer.
 4. Start the indexer without a keeper first. Wait until every source completes a finalized pass and compare raw logs to projected offers, positions, balances, auctions, claims, and margin accounts. During continuous operation, keep every source inside the small `V2_AUTOMATION_MAX_CHECKPOINT_LAG` window; this avoids an impossible equality race against Monad's moving head without allowing stale automation.
-5. Start the dedicated gas-limited keeper. It may only execute permissionless lifecycle calls and must hold no owner, guardian, signer, treasury, or custody role.
+5. Start the dedicated gas-limited keeper. It may only execute permissionless lifecycle calls and must hold no owner, guardian, signer, treasury, or custody role. Fund it above the measured worst-case lifecycle transaction cost plus an operating buffer (the Monad UAT target is `0.25 MON`) and alert before the reserve falls below two auction-start transactions.
 6. After attaching the exact manifest evidence, set the isolated operator gates `V2_REPO_POLICY_POOL_REGISTERED`, `V2_FEE_TREASURY_AUSDC_ELIGIBLE`, and `V2_SETTLEMENT_ESCROW_AUSDC_READY` true. They default false and must not be inferred from an address.
 7. Confirm `GET /v2/config` reports only the registered CVA as `marketReady`, exposes the expected `readiness.operatorAttestations`, `/v2/system/status` is healthy, and transaction-status reads become finalized/indexed after the configured confirmations.
 8. Review the emitted `frontendTrustedManifestDraft` against deployed runtime reads and the approved release record. Do not add addresses manually. It must still say `DEPLOYED_NOT_ACTIVE` at this stage.
@@ -256,14 +256,14 @@ Only after the smoke report is approved may governance leave isolated-market rea
 - An unsold auction produces the correct lender collateral path; stale-oracle fallback cannot bypass its delay or lender authorization.
 - Entry pause blocks new exposure but not cancel, withdraw, repay, auction, escrow claim, or lender recovery.
 - Cross-margin proves seller-authored target/minimum/rate/duration/expiry/permitted-lender constraints, permanent funding closure, account isolation, fixed face debt, aggregate health, margin call/cure, payment cross-default, successful and failed liquidation, permissionless pro-rata claim materialization, zero-rounded claim progress, final-claim dust, and close only at zero liabilities.
-- Kill the keeper immediately before and immediately after first broadcast; restart it and prove the durable `SUBMITTED` signed envelope rebroadcasts only identical bytes/hash/nonce and becomes successful only after configured finality.
+- Kill the keeper immediately before and immediately after first broadcast; restart it and prove the durable `SUBMITTED` envelope first rebroadcasts identical bytes/hash/nonce. Prove a transaction absent from both receipt and pending-nonce views for `V2_AUTOMATION_STALE_TX_MS` is replaced only with the same nonce, destination, calldata, and value plus a fee bump, while a consumed nonce forces full on-chain re-simulation.
 - Force browser receipt timeout and indexer delay; reload and prove the persisted transaction hash prevents duplicate signing until chain and finalized projection agree.
 - Vault assets equal liabilities and escrow assets equal outstanding claims after every path.
 - API quote/transfer graph, wallet receipt, confirmed raw log, PostgreSQL projection, and UI status agree.
 
 ## Monitoring and reconciliation
 
-Alert on stalled checkpoints, reorg replay, dead automation jobs, repeated preflight denial spikes, RPC/Cleanverse latency, stale oracle age, oracle signer disagreement, vault insolvency, escrow balance below claims, auction expiry backlog, margin-call backlog, ownership/guardian changes, risk changes, and readiness/feature-flag drift.
+Alert on stalled checkpoints, reorg replay, dead automation jobs, `SUBMITTED` outbox age, keeper gas reserve, repeated preflight denial spikes, RPC/Cleanverse latency, stale oracle age, oracle signer disagreement, vault insolvency, escrow balance below claims, auction expiry backlog, margin-call backlog, ownership/guardian changes, risk changes, and readiness/feature-flag drift.
 
 Run a periodic independent reconciliation from chain state, not the API cache. Keep correlation IDs, transaction hashes, decoded events, Cleanverse decision snapshots, and release-manifest hashes in the audit trail.
 
