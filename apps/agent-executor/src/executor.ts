@@ -2,6 +2,7 @@ import { APIError as PrivyApiError, PrivyClient } from '@privy-io/node';
 import { createPublicClient, defineChain, http, type Hash } from 'viem';
 import type { ExecutorConfig } from './config.js';
 import { ExecutorApi, ExecutorApiError, type ExecutorLease, type ExecutorStep } from './api.js';
+import { decimalToRpcQuantity } from './rpc.js';
 
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -152,7 +153,7 @@ export class AgentExecutor {
               from: lease.agent.walletAddress,
               to: step.destination,
               data: step.calldata,
-              value: step.nativeValue,
+              value: decimalToRpcQuantity(step.nativeValue),
               chain_id: 10_143,
             },
           },

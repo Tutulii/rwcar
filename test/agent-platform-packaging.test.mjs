@@ -46,6 +46,14 @@ describe('agent service isolation', () => {
     assert.match(executor, /USER node/);
   });
 
+  it('converts database decimal transaction values to Privy RPC hex quantities', () => {
+    const executor = read('apps/agent-executor/src/executor.ts');
+    const rpc = read('apps/agent-executor/src/rpc.ts');
+    assert.match(executor, /value: decimalToRpcQuantity\(step\.nativeValue\)/);
+    assert.doesNotMatch(executor, /value: step\.nativeValue/);
+    assert.match(rpc, /`0x\$\{BigInt\(value\)\.toString\(16\)\}`/);
+  });
+
   it('keeps the reviewed Privy selector policy synchronized with every executable ABI action', () => {
     const policy = read('docs/PRIVY_AGENT_POLICY.md');
     const executable = {
