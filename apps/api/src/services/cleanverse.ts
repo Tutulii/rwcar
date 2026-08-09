@@ -108,6 +108,13 @@ export class CleanverseClient {
     return this.request(path, { method: 'POST', body: JSON.stringify(body) });
   }
 
+  async generateApass(body: JsonObject): Promise<JsonObject> {
+    return this.request('/generate_apass', {
+      method: 'POST',
+      body: JSON.stringify(this.encryptBody(body)),
+    });
+  }
+
   async queryApass(chain: string, address: string): Promise<ApassRecord> {
     const response = await this.post('/query_apass', { chain, address });
     const data = asObject(response.data);

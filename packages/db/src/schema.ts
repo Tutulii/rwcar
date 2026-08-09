@@ -75,6 +75,27 @@ export const automationJobStatus = pgEnum('automation_job_status', [
   'CANCELLED',
 ]);
 
+export const agentStatus = pgEnum('agent_status', [
+  'PENDING_WALLET', 'PENDING_CVI', 'PENDING_MANDATE', 'ACTIVE', 'PAUSED', 'REVOKED',
+]);
+export const agentCredentialStatus = pgEnum('agent_credential_status', [
+  'ACTIVE', 'ROTATING', 'REVOKED', 'EXPIRED',
+]);
+export const agentMandateStatus = pgEnum('agent_mandate_status', [
+  'ACTIVE', 'REVOKED', 'EXPIRED', 'SUPERSEDED',
+]);
+export const agentIntentState = pgEnum('agent_intent_state', [
+  'PREPARED', 'APPROVAL_REQUIRED', 'APPROVED', 'QUEUED', 'SIGNING', 'SUBMITTED',
+  'CONFIRMED', 'INDEXING', 'COMPLETED', 'DENIED', 'REJECTED', 'EXPIRED', 'CANCELLED',
+  'REVERTED', 'FAILED', 'FAILED_WITH_ALLOWANCE',
+]);
+export const agentPolicyDecision = pgEnum('agent_policy_decision', [
+  'AUTO_APPROVED', 'HUMAN_REQUIRED', 'DENIED',
+]);
+export const agentStepStatus = pgEnum('agent_step_status', [
+  'PENDING', 'SIGNING', 'SUBMITTED', 'CONFIRMED', 'FAILED', 'SKIPPED',
+]);
+
 export const assets = pgTable('assets', {
   id: uuid('id').defaultRandom().primaryKey(),
   chainId: integer('chain_id').notNull(),
@@ -668,4 +689,211 @@ export const automationJobs = pgTable('automation_jobs', {
 }, (table) => [
   uniqueIndex('automation_jobs_resource_action_uidx').on(table.chainId, table.contractAddress, table.action, table.resourceType, table.resourceId),
   index('automation_jobs_due_idx').on(table.status, table.nextAttemptAt),
+]);
+
+export const institutions = pgTable('institutions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  adminPrivyUserId: text('admin_privy_user_id').notNull(),
+  adminWallet: text('admin_wallet').notNull(),
+  status: text('status').notNull().default('ACTIVE'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('institutions_admin_privy_user_uidx').on(table.adminPrivyUserId),
+  uniqueIndex('institutions_admin_wallet_uidx').on(table.adminWallet),
+]);
+
+export const institutionMembers = pgTable('institution_members', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  institutionId: uuid('institution_id').notNull().references(() => institutions.id, { onDelete: 'cascade' }),
+  privyUserId: text('privy_user_id').notNull(),
+  wallet: text('wallet').notNull(),
+  role: text('role').notNull().default('ADMIN'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('institution_members_user_uidx').on(table.institutionId, table.privyUserId),
+  index('institution_members_wallet_idx').on(table.wallet),
+]);
+
+export const agents = pgTable('agents', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  institutionId: uuid('institution_id').notNull().references(() => institutions.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  status: agentStatus('status').notNull().default('PENDING_WALLET'),
+  walletAddress: text('wallet_address'),
+  privyWalletId: text('privy_wallet_id'),
+  signerId: text('signer_id'),
+  policyId: text('policy_id'),
+  cviActive: boolean('cvi_active').notNull().default(false),
+  cviExpiresAt: timestamp('cvi_expires_at', { withTimezone: true }),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('agents_wallet_uidx').on(table.walletAddress),
+  uniqueIndex('agents_privy_wallet_uidx').on(table.privyWalletId),
+  index('agents_institution_status_idx').on(table.institutionId, table.status),
+]);
+
+export const agentCredentials = pgTable('agent_credentials', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull(),
+  secretHash: text('secret_hash').notNull(),
+  label: text('label').notNull(),
+  scopes: jsonb('scopes').$type<string[]>().notNull(),
+  status: agentCredentialStatus('status').notNull().default('ACTIVE'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('agent_credentials_client_uidx').on(table.clientId),
+  index('agent_credentials_agent_status_idx').on(table.agentId, table.status),
+]);
+
+export const agentMandates = pgTable('agent_mandates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  wallet: text('wallet').notNull(),
+  manifestHash: text('manifest_hash').notNull(),
+  allowedActions: jsonb('allowed_actions').$type<string[]>().notNull(),
+  allowedAssets: jsonb('allowed_assets').$type<string[]>().notNull(),
+  constraints: jsonb('constraints').$type<Record<string, unknown>>().notNull(),
+  nonce: numeric('nonce', { precision: 78, scale: 0 }).notNull(),
+  signature: text('signature').notNull(),
+  status: agentMandateStatus('status').notNull().default('ACTIVE'),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('agent_mandates_agent_version_uidx').on(table.agentId, table.version),
+  uniqueIndex('agent_mandates_agent_nonce_uidx').on(table.agentId, table.nonce),
+  index('agent_mandates_agent_status_idx').on(table.agentId, table.status, table.expiresAt),
+]);
+
+export const agentIntents = pgTable('agent_intents', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  mandateId: uuid('mandate_id').notNull().references(() => agentMandates.id),
+  idempotencyKey: uuid('idempotency_key').notNull(),
+  action: text('action').notNull(),
+  input: jsonb('input').$type<Record<string, unknown>>().notNull(),
+  intentHash: text('intent_hash').notNull(),
+  state: agentIntentState('state').notNull(),
+  policyDecision: agentPolicyDecision('policy_decision').notNull(),
+  approvalRequired: boolean('approval_required').notNull(),
+  approvalReason: text('approval_reason'),
+  reservedNotional: numeric('reserved_notional', { precision: 78, scale: 0 }).notNull().default('0'),
+  preflight: jsonb('preflight').$type<Record<string, unknown> | null>(),
+  correlationId: uuid('correlation_id'),
+  quoteExpiresAt: timestamp('quote_expires_at', { withTimezone: true }),
+  intentExpiresAt: timestamp('intent_expires_at', { withTimezone: true }).notNull(),
+  manifestHash: text('manifest_hash').notNull(),
+  privyActionId: text('privy_action_id'),
+  txHash: text('tx_hash'),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  lockedBy: text('locked_by'),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('agent_intents_idempotency_uidx').on(table.agentId, table.idempotencyKey),
+  uniqueIndex('agent_intents_hash_uidx').on(table.agentId, table.intentHash),
+  index('agent_intents_queue_idx').on(table.state, table.createdAt),
+  index('agent_intents_agent_created_idx').on(table.agentId, table.createdAt),
+  index('agent_intents_tx_idx').on(table.txHash),
+]);
+
+export const agentIntentSteps = pgTable('agent_intent_steps', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  intentId: uuid('intent_id').notNull().references(() => agentIntents.id, { onDelete: 'cascade' }),
+  stepIndex: integer('step_index').notNull(),
+  kind: text('kind').notNull(),
+  destination: text('destination').notNull(),
+  calldata: text('calldata').notNull(),
+  nativeValue: numeric('native_value', { precision: 78, scale: 0 }).notNull().default('0'),
+  description: text('description').notNull(),
+  status: agentStepStatus('status').notNull().default('PENDING'),
+  privyActionId: text('privy_action_id'),
+  txHash: text('tx_hash'),
+  errorMessage: text('error_message'),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('agent_intent_steps_order_uidx').on(table.intentId, table.stepIndex),
+  index('agent_intent_steps_tx_idx').on(table.txHash),
+]);
+
+export const agentApprovals = pgTable('agent_approvals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  intentId: uuid('intent_id').notNull().references(() => agentIntents.id, { onDelete: 'cascade' }),
+  approverWallet: text('approver_wallet').notNull(),
+  decision: text('decision').notNull(),
+  intentHash: text('intent_hash').notNull(),
+  signature: text('signature').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('agent_approvals_intent_wallet_uidx').on(table.intentId, table.approverWallet),
+]);
+
+export const agentUsageBuckets = pgTable('agent_usage_buckets', {
+  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  mandateId: uuid('mandate_id').notNull().references(() => agentMandates.id, { onDelete: 'cascade' }),
+  bucketStart: timestamp('bucket_start', { withTimezone: true }).notNull(),
+  reservedNotional: numeric('reserved_notional', { precision: 78, scale: 0 }).notNull().default('0'),
+  completedNotional: numeric('completed_notional', { precision: 78, scale: 0 }).notNull().default('0'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.agentId, table.mandateId, table.bucketStart] }),
+]);
+
+export const agentEvents = pgTable('agent_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  intentId: uuid('intent_id').references(() => agentIntents.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('agent_events_agent_time_idx').on(table.agentId, table.occurredAt),
+  index('agent_events_intent_time_idx').on(table.intentId, table.occurredAt),
+]);
+
+export const agentWebhookEndpoints = pgTable('agent_webhook_endpoints', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  institutionId: uuid('institution_id').notNull().references(() => institutions.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  secretHash: text('secret_hash').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index('agent_webhook_endpoints_institution_idx').on(table.institutionId, table.enabled)]);
+
+export const agentWebhookDeliveries = pgTable('agent_webhook_deliveries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  endpointId: uuid('endpoint_id').notNull().references(() => agentWebhookEndpoints.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull().references(() => agentEvents.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('PENDING'),
+  attempts: integer('attempts').notNull().default(0),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  lastError: text('last_error'),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('agent_webhook_delivery_event_endpoint_uidx').on(table.endpointId, table.eventId),
+  index('agent_webhook_delivery_due_idx').on(table.status, table.nextAttemptAt),
 ]);
