@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { describe, it } from 'node:test';
 import {
+  AgentClaimSchema,
   AgentMandateConstraintsSchema,
   AllAgentScopes,
 } from '@rwcar/shared';
@@ -19,6 +20,7 @@ import { TokenBodySchema } from '../src/routes/oauth.js';
 import {
   deriveRepoPositionLifecycle,
   preflightMatchesRemainingProtocolSteps,
+  resolveMandateApproval,
   resolveIntentDiagnostics,
 } from '../src/services/agent.js';
 
@@ -101,6 +103,8 @@ describe('agent configuration and discovery', () => {
     assert.equal(discovery.capabilities.toolCount, 17);
     assert.deepEqual(discovery.capabilities.tools, RWCAR_MCP_TOOLS);
     assert.equal(discovery.capabilities.arbitraryTransactions, false);
+    assert.deepEqual(discovery.capabilities.executionModes, ['AUTONOMOUS', 'SUPERVISED']);
+    assert.equal(discovery.capabilities.autonomousMandate.perIntentHumanApproval, false);
     assert.equal(discovery.events.stream, 'https://api.example.test/agent/v1/events/stream');
     assert.equal(discovery.events.protocol, 'SSE');
     assert.deepEqual(Object.keys(RWCAR_MCP_TOOL_SCOPES), [...RWCAR_MCP_TOOLS]);
@@ -126,6 +130,7 @@ describe('agent configuration and discovery', () => {
 describe('signed mandate constraints', () => {
   const now = Math.floor(Date.now() / 1_000);
   const valid = {
+    executionMode: 'AUTONOMOUS' as const,
     allowedActions: ['CREATE_OFFER'] as const,
     allowedAssets: ['0x00000000000000000000000000000000000000aa'],
     maxPerTransaction: '1000000',
@@ -147,6 +152,26 @@ describe('signed mandate constraints', () => {
     assert.equal(AgentMandateConstraintsSchema.safeParse({ ...valid, autoExecuteUpTo: '1000001' }).success, false);
     assert.equal(AgentMandateConstraintsSchema.safeParse({ ...valid, maxAnnualRateBps: 99 }).success, false);
     assert.equal(AgentMandateConstraintsSchema.safeParse({ ...valid, expiresAt: now }).success, false);
+  });
+
+  it('requires no per-intent approval only when autonomy was explicitly signed', () => {
+    assert.deepEqual(resolveMandateApproval(valid, 'MARGIN_ACTION', 1_000_000n), {
+      decision: 'AUTO_APPROVED',
+      reason: null,
+    });
+    const legacy = AgentMandateConstraintsSchema.parse({ ...valid, executionMode: undefined });
+    assert.equal(legacy.executionMode, 'SUPERVISED');
+    assert.deepEqual(resolveMandateApproval(legacy, 'MARGIN_ACTION', 1n), {
+      decision: 'HUMAN_REQUIRED',
+      reason: 'RISK_SENSITIVE_ACTION',
+    });
+  });
+
+  it('allows claim preparation from a discovered claim ID without agent-invented escrow fields', () => {
+    assert.equal(AgentClaimSchema.safeParse({
+      idempotencyKey: '74ecf58d-0bbc-4e42-9ec3-f71e2a599cb8',
+      claimId: '7',
+    }).success, true);
   });
 });
 

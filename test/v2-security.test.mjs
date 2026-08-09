@@ -14,7 +14,7 @@ import {
   removePendingExecution,
   upsertPendingExecution,
 } from '../src/lib/v2-pending.js';
-import { sendTransaction } from '../src/lib/chain.js';
+import { normalizeWalletProviderError, sendTransaction } from '../src/lib/chain.js';
 
 const address = (value) => `0x${value.toString(16).padStart(40, '0')}`;
 const hash = (value) => `0x${value.toString(16).padStart(64, '0')}`;
@@ -157,5 +157,13 @@ describe('submitted transaction recovery records', () => {
         && error.code === 'RECOVERY_PERSIST_FAILED'
         && error.txHash === txHash,
     );
+  });
+
+  it('turns mobile-wallet DNS failures into a concise retryable no-submission error', () => {
+    const normalized = normalizeWalletProviderError(new Error('Cronet failed: net::ERR_NAME_NOT_RESOLVED InternalErrorCode=-105'));
+    assert.equal(normalized.code, 'WALLET_RPC_DNS_UNAVAILABLE');
+    assert.equal(normalized.retryable, true);
+    assert.match(normalized.message, /No transaction was submitted/);
+    assert.doesNotMatch(normalized.message, /Cronet|RuntimeException/);
   });
 });

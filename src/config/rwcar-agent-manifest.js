@@ -11,5 +11,5 @@ export const RWCAR_AGENT_MANIFEST = {
     "references/tool-contracts.md",
     "references/workflows.md"
   ],
-  "sha256": "0x929c90dfb0efefe1401af53861bf0cc30f0eaa2e9856db32dfba71a1833fd372"
+  "sha256": "0x4718a37dcedd41bfc22bb90791d41a0bd3548703beaefc0b5e883e5aee3a3d80"
 };

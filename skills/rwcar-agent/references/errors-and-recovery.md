@@ -19,8 +19,10 @@
 
 - `INSUFFICIENT_SCOPE`: the credential was not granted that capability. Ask an administrator to issue or rotate a least-privilege credential.
 - `AGENT_PAUSED`, `AGENT_REVOKED`, `MANDATE_REQUIRED`, `MANDATE_EXPIRED`: stop; only the institution administrator can restore authority.
-- `APPROVAL_REQUIRED`: do not repeatedly call execute. Hand the immutable intent to the administrator.
+- `APPROVAL_REQUIRED`: the active mandate is `SUPERVISED`. Do not repeatedly call execute; hand the immutable intent to the administrator. An `AUTONOMOUS` mandate does not emit this state for an otherwise permitted action.
 - `ACTION_NOT_ALLOWED`: the signed mandate excludes the action. Use `approvalHandoff` only for approvable intents; a denial requires an administrator-signed replacement mandate.
+- `RECIPIENT_NOT_ALLOWED`: withdraw to the bound agent wallet, which is always allowed, or require a replacement mandate that explicitly admits the third-party recipient.
+- `CLAIM_ESCROW_AMBIGUOUS`: use the escrow address returned with the matching claim in `get_portfolio`; never guess an escrow.
 - `ROLE_NOT_ALLOWED`: use the role identified in `blockingDetails`; changing credentials does not change the bound wallet's on-chain role.
 - `MARGIN_INPUT_REQUIRED`: provide every field in `details.missingPrerequisites`, follow `details.nextActions`, and prepare again with a fresh UUID.
 - `INTENT_HASH_MISMATCH`: treat as a security incident. Do not execute; compare against the original preparation result.
